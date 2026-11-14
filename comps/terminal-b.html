@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Terminal B — P3 amber / Plex Serif + Plex Mono</title>
+    <link rel="stylesheet" href="./fonts.css" />
+    <link rel="stylesheet" href="./terminal-shell.css" />
+    <style>
+      :root {
+        --bg: #120e09;
+        --p: #ffb347;
+        --p-dim: #8a5314;
+        --p-soft: #d4a05a;
+        --p-hi: #ffe0a3;
+        --glow: rgba(255, 170, 50, 0.18);
+        --body: 'IBM Plex Mono', ui-monospace, monospace;
+        --display: 'IBM Plex Serif', Palatino, serif;
+        --still-bg: #0a0704;
+      }
+      h1 {
+        font-style: italic;
+        letter-spacing: 0;
+        font-size: clamp(28px, 6vw, 42px);
+        text-transform: none;
+      }
+      .row h2 {
+        font-style: italic;
+        text-transform: none;
+        font-size: 15px;
+      }
+      .row h2::before { font-style: italic; }
+    </style>
+  </head>
+  <body>
+    <div class="crt">
+      <div class="bar">
+        <span>grafikremix@studio</span>
+        <span><b>PLAYGROUND</b></span>
+        <span>var B · P3 amber</span>
+        <span>Plex Serif italic + Plex Mono</span>
+        <span>2026</span>
+      </div>
+      <h1>ls ./stills</h1>
+      <p class="lede" id="lede"></p>
+      <p class="prompt">$ <span>hold a frame for colour. tap to open.</span></p>
+      <ol class="grid" id="grid"></ol>
+    </div>
+    <script type="module">
+      import { mountTerminal } from './terminal-kit.js'
+      await mountTerminal()
+    </script>
+  </body>
+</html>

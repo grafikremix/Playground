@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Terminal D — red radar / Oswald + Plex Mono</title>
+    <link rel="stylesheet" href="./fonts.css" />
+    <link rel="stylesheet" href="./terminal-shell.css" />
+    <style>
+      :root {
+        --bg: #000000;
+        --p: #ff2416;
+        --p-dim: #6a100c;
+        --p-soft: #c45a4e;
+        --p-hi: #ff8a7a;
+        --glow: rgba(255, 30, 20, 0.2);
+        --body: 'IBM Plex Mono', ui-monospace, monospace;
+        --display: Oswald, 'Arial Narrow', sans-serif;
+      }
+      h1 {
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        text-transform: uppercase;
+        font-size: clamp(28px, 7vw, 48px);
+        line-height: 1;
+      }
+      .row h2 {
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+        font-size: 15px;
+      }
+      .bar { letter-spacing: 0.12em; text-transform: uppercase; font-size: 11px; }
+    </style>
+  </head>
+  <body>
+    <div class="crt">
+      <div class="bar">
+        <span>grafikremix@studio</span>
+        <span><b>PLAYGROUND</b></span>
+        <span>var D · radar</span>
+        <span>Oswald + Plex Mono</span>
+        <span>2026</span>
+      </div>
+      <h1>ls ./stills</h1>
+      <p class="lede" id="lede"></p>
+      <p class="prompt">$ <span>hold a frame for colour. tap to open.</span></p>
+      <ol class="grid" id="grid"></ol>
+    </div>
+    <script type="module">
+      import { mountTerminal } from './terminal-kit.js'
+      await mountTerminal()
+    </script>
+  </body>
+</html>
