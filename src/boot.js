@@ -13,7 +13,7 @@ export function boot(slug, mount) {
   app.innerHTML = `
     <div class="site">
       <nav class="chrome">
-        <a class="back" href="${withBase('')}">← Playground</a>
+        <a class="back" href="${withBase('')}">← playground</a>
         <a class="mark" href="${withBase('')}" data-monogram data-print="gr">gr</a>
         <span class="counter">${spec.n} / ${String(specimens.length).padStart(2, '0')}</span>
       </nav>

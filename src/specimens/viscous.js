@@ -15,7 +15,7 @@ export function mount(el, { preview = false, still = false } = {}) {
             <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -8"/>
           </filter>
         </defs>
-        <rect class="well" x="40" y="58" width="320" height="64" rx="32" fill="rgba(28,23,18,0.05)" stroke="#1c1712" stroke-width="1.4"/>
+        <rect class="well" x="40" y="58" width="320" height="64" rx="32" fill="rgba(183,236,255,0.06)" stroke="#3d6f88" stroke-width="2.2"/>
         <g class="spin">
           <g class="blobs" filter="url(#${id})"></g>
         </g>
@@ -73,8 +73,16 @@ export function mount(el, { preview = false, still = false } = {}) {
   if (still) {
     blobs.forEach((b) => {
       b.x += 160
+      b.r *= 1.45
     })
-    splash(520, 1)
+    splash(720, 1)
+    drops.forEach((d, i) => {
+      const a = (i / Math.max(1, drops.length)) * Math.PI * 1.4 - 0.4
+      d.x = blobs[0].x + Math.cos(a) * (48 + i * 6)
+      d.y = blobs[0].y + Math.sin(a) * (28 + (i % 3) * 8)
+      d.r = 8 + (i % 4) * 3
+      d.life = 1
+    })
     readout.textContent = 'on'
     wrap.setAttribute('aria-checked', 'true')
   }
@@ -138,6 +146,17 @@ export function mount(el, { preview = false, still = false } = {}) {
   })
 
   const stop = whenVisible(wrap, (dt) => {
+    if (still) {
+      const fill = '#b7ecff'
+      const all = blobs.concat(drops)
+      layer.innerHTML = all
+        .map(
+          (b) =>
+            `<circle cx="${b.x.toFixed(1)}" cy="${b.y.toFixed(1)}" r="${(b.r * pinch).toFixed(1)}" fill="${fill}"/>`,
+        )
+        .join('')
+      return
+    }
     const tx = dragging ? blobs[0].x : targetX()
     const ty = 90
     const k = reduced ? 70 : 38
@@ -169,7 +188,7 @@ export function mount(el, { preview = false, still = false } = {}) {
     rotV *= Math.exp(-2.2 * dt)
     spin.setAttribute('transform', `rotate(${(rot * 180) / Math.PI} 200 90)`)
 
-    const fill = on ? '#d63a12' : '#2f5e56'
+    const fill = on ? '#b7ecff' : '#3d6f88'
     const all = blobs.concat(drops)
     layer.innerHTML = all
       .map(

@@ -27,9 +27,9 @@ export function mount(el, { preview = false, still = false } = {}) {
 
   function phase(now) {
     if (still) {
-      const t = 0.48
-      const s = (1 - Math.cos(t * Math.PI * 2)) / 2
-      return { t, s, inhaling: false, scale: 1.08 }
+      const t = 0.5
+      const s = 1
+      return { t, s, inhaling: false, scale: 1.14 }
     }
     const t = ((now + tiltBias) % PERIOD) / PERIOD
     const s = (1 - Math.cos(t * Math.PI * 2)) / 2

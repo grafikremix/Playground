@@ -12,10 +12,10 @@ export function mount(el, { preview = false, still = false } = {}) {
     <div class="elastic">
       <div class="readout">50</div>
       <svg viewBox="0 0 520 150" preserveAspectRatio="none">
-        <path class="band" fill="none" stroke="#1c1712" stroke-width="3.2" stroke-linecap="round"/>
-        <circle class="peg l" cx="36" cy="78" r="5" fill="#1c1712"/>
-        <circle class="peg r" cx="484" cy="78" r="5" fill="#1c1712"/>
-        <circle class="knob" cx="260" cy="78" r="14" fill="#efe6d2" stroke="#d63a12" stroke-width="2.2"/>
+        <path class="band" fill="none" stroke="#b7ecff" stroke-width="3.2" stroke-linecap="round"/>
+        <circle class="peg l" cx="36" cy="78" r="5" fill="#b7ecff"/>
+        <circle class="peg r" cx="484" cy="78" r="5" fill="#b7ecff"/>
+        <circle class="knob" cx="260" cy="78" r="14" fill="#02050c" stroke="#e7f8ff" stroke-width="2.6"/>
       </svg>
     </div>
   `
@@ -33,13 +33,14 @@ export function mount(el, { preview = false, still = false } = {}) {
   let twang = still ? 1 : 0
   let stretchMul = still ? 2.4 : 1
   if (still) {
-    band.setAttribute('stroke-width', '6')
+    band.setAttribute('stroke-width', '8')
     band.setAttribute(
       'd',
       'M 36 78 Q 150 150 250 100 Q 360 28 484 78',
     )
     knob.setAttribute('cx', '250')
     knob.setAttribute('cy', '100')
+    knob.setAttribute('r', '18')
   }
 
   const left = 36
@@ -93,7 +94,7 @@ export function mount(el, { preview = false, still = false } = {}) {
 
   const stop = whenVisible(wrap, (dt) => {
     if (still) {
-      band.setAttribute('stroke-width', '6')
+      band.setAttribute('stroke-width', '8')
       band.setAttribute('d', 'M 36 78 Q 150 150 250 100 Q 360 28 484 78')
       knob.setAttribute('cx', '250')
       knob.setAttribute('cy', '100')

@@ -176,7 +176,7 @@ export function mount(el, { preview = false, still = false } = {}) {
       dust.forEach((d) => {
         ctx.save()
         ctx.globalAlpha = clamp(d.life, 0, 0.75)
-        ctx.fillStyle = '#7a7164'
+        ctx.fillStyle = '#3d6f88'
         ctx.translate(d.x, d.y)
         ctx.rotate(d.rot)
         ctx.fillText(d.ch, 0, 0)
@@ -184,8 +184,8 @@ export function mount(el, { preview = false, still = false } = {}) {
       })
     }
 
-    ctx.fillStyle = '#1c1712'
-    ctx.font = `${still ? 36 : 22}px "Fraunces Variable", Fraunces, serif`
+    ctx.fillStyle = '#b7ecff'
+    ctx.font = `${still ? 42 : 22}px "Silkscreen", "IBM Plex Mono", monospace`
     letters.forEach((L) => {
       ctx.save()
       ctx.translate(L.x, L.y)
@@ -195,8 +195,8 @@ export function mount(el, { preview = false, still = false } = {}) {
     })
 
     const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 240)
-    ctx.strokeStyle = '#d63a12'
-    ctx.lineWidth = 2
+    ctx.strokeStyle = '#e7f8ff'
+    ctx.lineWidth = 2.4
     ctx.beginPath()
     ctx.moveTo(magnetX, magnetY - 18)
     ctx.lineTo(magnetX, magnetY + 8)
@@ -206,8 +206,8 @@ export function mount(el, { preview = false, still = false } = {}) {
     ctx.stroke()
 
     if (focused) {
-      ctx.strokeStyle = 'rgba(214,58,18,0.28)'
-      ctx.lineWidth = 0.6
+      ctx.strokeStyle = 'rgba(183,236,255,0.35)'
+      ctx.lineWidth = 1.1
       for (let a = 0; a < 8; a++) {
         const ang = (a / 8) * Math.PI * 2 + performance.now() / 2000
         ctx.beginPath()

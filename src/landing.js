@@ -1,5 +1,6 @@
 import './styles.css'
 import { fillStudio, withBase, specimens } from './chrome.js'
+import { ditherToPhosphor } from './lib/dither.js'
 
 const HOLD = 260
 const reduced =
@@ -31,7 +32,11 @@ grid.innerHTML = specimens
   })
   .join('')
 
-grid.querySelectorAll('.tile').forEach(bindTile)
+grid.querySelectorAll('.tile').forEach((tile) => {
+  const bw = tile.querySelector('.still-bw img')
+  if (bw) ditherToPhosphor(bw)
+  bindTile(tile)
+})
 
 function bindTile(tile) {
   const hit = tile.querySelector('.tile-hit')

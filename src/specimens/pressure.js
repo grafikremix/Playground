@@ -141,13 +141,13 @@ export function mount(el, { preview = false, still = false } = {}) {
 
 function draw(ctx, p, on) {
   ctx.clearRect(0, 0, 48, 48)
-  ctx.fillStyle = '#efe8d6'
+  ctx.fillStyle = '#02050c'
   ctx.fillRect(0, 0, 48, 48)
   if (p <= 0.02 && !on) return
 
   if (p < 0.45) {
-    ctx.strokeStyle = `rgba(28,23,18,${0.25 + p})`
-    ctx.lineWidth = 0.7
+    ctx.strokeStyle = `rgba(183,236,255,${0.35 + p})`
+    ctx.lineWidth = 1.2
     for (let i = 0; i < 12 * p + 3; i++) {
       ctx.beginPath()
       ctx.moveTo(10 + Math.random() * 28, 8 + Math.random() * 32)
@@ -155,17 +155,17 @@ function draw(ctx, p, on) {
       ctx.stroke()
     }
   } else {
-    ctx.fillStyle = `rgba(28,23,18,${0.35 + p * 0.5})`
+    ctx.fillStyle = `rgba(183,236,255,${0.45 + p * 0.5})`
     ctx.beginPath()
     ctx.arc(24, 24, 6 + p * 10, 0, Math.PI * 2)
     ctx.fill()
-    ctx.fillStyle = '#efe6d2'
-    ctx.font = `${10 + p * 8}px "Fraunces Variable", serif`
+    ctx.fillStyle = '#02050c'
+    ctx.font = `${10 + p * 8}px "Silkscreen", "IBM Plex Mono", monospace`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     if (p > 0.7) ctx.fillText('•', 24, 25)
-    ctx.strokeStyle = `rgba(214,58,18,${(p - 0.6) * 1.4})`
-    ctx.lineWidth = 2
+    ctx.strokeStyle = `rgba(231,248,255,${Math.min(1, (p - 0.6) * 1.8)})`
+    ctx.lineWidth = 2.4
     if (p > 0.78) ctx.strokeRect(6, 6, 36, 36)
   }
 }

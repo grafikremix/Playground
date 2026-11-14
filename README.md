@@ -15,7 +15,7 @@ Eight interface experiments. Each one breaks a rule I usually defend. The fun is
 
 Built for a thumb as much as a mouse. Drag, flick, hold, pinch, twist.
 
-The index is a grid of stills. Black and white until you hover or hold; colour blooms from the press. Tap opens the experiment. Hold does not.
+The index is a grid of stills. Dithered phosphor until you hover or hold; colour blooms from the press. Tap opens the experiment. Hold does not.
 
 Stills are captured from the live experiments (`?still=1` poses them), then cropped and treated. With the site running locally:
 

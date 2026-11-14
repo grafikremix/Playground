@@ -120,13 +120,14 @@ export function mount(el, { preview = false, still = false } = {}) {
       }
       const node = document.createElement('div')
       node.className = 'shard'
-      const fill = Math.random() > 0.5 ? 'rgba(239,230,210,0.55)' : 'rgba(214,58,18,0.18)'
+      const fill = Math.random() > 0.5 ? 'rgba(183,236,255,0.92)' : 'rgba(127,182,204,0.78)'
       node.style.cssText = `
         width:${w}px;height:${h}px;left:0;top:0;
         background:${fill};
         clip-path: polygon(${pts.map((p) => `${p[0] + w / 2}px ${p[1] + h / 2}px`).join(',')});
-        border: 1px solid rgba(28,23,18,0.35);
-        opacity: 0.85;
+        border: 1.5px solid rgba(231,248,255,0.85);
+        box-shadow: 0 0 14px rgba(183,236,255,0.35);
+        opacity: 1;
       `
       field.appendChild(node)
       s.node = node
@@ -169,20 +170,54 @@ export function mount(el, { preview = false, still = false } = {}) {
     open()
   })
 
+  function spawnStillShards() {
+    const hostW = 720
+    const hostH = 720
+    const n = 12
+    const fills = ['#b7ecff', '#e7f8ff', '#7fb6cc', '#b7ecff']
+    for (let i = 0; i < n; i++) {
+      const w = 88 + (i % 4) * 18
+      const h = 70 + ((i + 2) % 3) * 22
+      const pts = []
+      const cuts = 6
+      for (let k = 0; k < cuts; k++) {
+        const a = (k / cuts) * Math.PI * 2 + i * 0.11
+        const r = 0.52 + ((i + k) % 3) * 0.16
+        pts.push([Math.cos(a) * w * r, Math.sin(a) * h * r])
+      }
+      const a = (i / n) * Math.PI * 2
+      const s = {
+        x: hostW * 0.5 + Math.cos(a) * 210 - w / 2,
+        y: hostH * 0.5 + Math.sin(a) * 190 - h / 2,
+        vx: 0,
+        vy: 0,
+        rot: a * 0.35,
+        vr: 0,
+        w,
+        h,
+        pts,
+        settled: true,
+      }
+      const node = document.createElement('div')
+      node.className = 'shard'
+      node.style.cssText = `
+        width:${w}px;height:${h}px;left:0;top:0;
+        background:${fills[i % fills.length]};
+        clip-path: polygon(${pts.map((p) => `${p[0] + w / 2}px ${p[1] + h / 2}px`).join(',')});
+        border: 2px solid #e7f8ff;
+        box-shadow: 0 0 22px rgba(183,236,255,0.55);
+        opacity: 1;
+      `
+      field.appendChild(node)
+      s.node = node
+      pile.push(s)
+      node.style.transform = `translate(${s.x}px, ${s.y}px) rotate(${s.rot}rad)`
+    }
+  }
+
   if (still) {
     ui.querySelector('.open-btn').style.visibility = 'hidden'
-    open()
-    const card = layer?.querySelector('.modal-card')
-    if (card) shatter(card)
-    const host = frame.getBoundingClientRect()
-    pile.forEach((s, i) => {
-      const a = (i / Math.max(1, pile.length)) * Math.PI * 2
-      s.x = host.width * 0.42 + Math.cos(a) * 90
-      s.y = host.height * 0.42 + Math.sin(a) * 70
-      s.vx = Math.cos(a) * 140
-      s.vy = Math.sin(a) * 90 - 40
-      s.settled = false
-    })
+    spawnStillShards()
   }
 
   const bounds = () =>
@@ -209,7 +244,7 @@ export function mount(el, { preview = false, still = false } = {}) {
           if (Math.abs(s.vy) < 24) {
             s.settled = true
             s.vy = 0
-            s.node.style.opacity = '0.42'
+            if (!still) s.node.style.opacity = '0.72'
           }
         }
       }

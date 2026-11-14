@@ -113,7 +113,7 @@ export function mount(el, { preview = false, still = false } = {}) {
       if (it) {
         it.done = true
         it.tick = 1
-        it.drips = [{ x: 14, y: 16, vy: 16, len: 18, alive: true }]
+        it.drips = [{ x: 14, y: 16, vy: 16, len: 26, alive: true }]
       }
     })
   }
@@ -126,8 +126,8 @@ export function mount(el, { preview = false, still = false } = {}) {
       ctx.clearRect(0, 0, 30, 52)
       if (it.done) {
         it.tick = Math.min(1, it.tick + dt / (reduced ? 0.1 : 0.26))
-        ctx.strokeStyle = '#1c1712'
-        ctx.lineWidth = 1.7
+        ctx.strokeStyle = '#b7ecff'
+        ctx.lineWidth = 2.4
         ctx.lineCap = 'round'
         ctx.beginPath()
         ctx.moveTo(7, 12)
@@ -143,13 +143,13 @@ export function mount(el, { preview = false, still = false } = {}) {
         d.vy += 46 * dt
         d.len += d.vy * dt
         if (d.len > 30) d.alive = false
-        ctx.strokeStyle = 'rgba(28,23,18,.5)'
-        ctx.lineWidth = 1.1
+        ctx.strokeStyle = 'rgba(183,236,255,.7)'
+        ctx.lineWidth = 2
         ctx.beginPath()
         ctx.moveTo(d.x, d.y)
         ctx.lineTo(d.x, d.y + d.len)
         ctx.stroke()
-        ctx.fillStyle = '#1c1712'
+        ctx.fillStyle = '#b7ecff'
         ctx.beginPath()
         ctx.ellipse(d.x, d.y + d.len, 1.7, 2.5, 0, 0, Math.PI * 2)
         ctx.fill()

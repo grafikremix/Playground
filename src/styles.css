@@ -1,19 +1,25 @@
-@import '@fontsource-variable/fraunces/full.css';
+@import '@fontsource/silkscreen/400.css';
+@import '@fontsource/silkscreen/700.css';
 @import '@fontsource/ibm-plex-mono/400.css';
 @import '@fontsource/ibm-plex-mono/400-italic.css';
 
 :root {
-  --paper: #efe6d2;
-  --paper-2: #e7dcc4;
-  --ink: #1c1712;
-  --ink-2: #3b342c;
-  --mute: #7a7164;
-  --rule: #cbbfa6;
-  --accent: #d63a12;
-  --offset: #2f5e56;
-  --frost: #c5d8dc;
-  --grain: 0.11;
-  --display: 'Fraunces Variable', 'Fraunces', 'Times New Roman', serif;
+  --bg: #02050c;
+  --bg-2: #071018;
+  --p: #b7ecff;
+  --p-dim: #3d6f88;
+  --p-soft: #7fb6cc;
+  --p-hi: #e7f8ff;
+  --ink: var(--p);
+  --ink-2: var(--p-soft);
+  --mute: var(--p-dim);
+  --rule: #1a3344;
+  --accent: var(--p);
+  --offset: var(--p-soft);
+  --frost: #7fb6cc;
+  --paper: var(--bg);
+  --paper-2: var(--bg-2);
+  --display: 'Silkscreen', ui-monospace, monospace;
   --mono: 'IBM Plex Mono', ui-monospace, monospace;
   --pad: max(16px, env(safe-area-inset-left));
 }
@@ -21,11 +27,11 @@
 * { box-sizing: border-box; }
 
 html {
-  background: var(--paper);
-  color: var(--ink);
+  background: var(--bg);
+  color: var(--p);
   font-family: var(--mono);
   font-size: 16px;
-  line-height: 1.45;
+  line-height: 1.5;
   hanging-punctuation: first last;
   -webkit-text-size-adjust: 100%;
 }
@@ -34,10 +40,10 @@ body {
   margin: 0;
   min-height: 100dvh;
   background:
-    radial-gradient(900px 560px at 8% -10%, #f6efe0 0%, transparent 55%),
-    radial-gradient(700px 420px at 110% 20%, #e4d3b4 0%, transparent 50%),
-    var(--paper);
-  color: var(--ink);
+    radial-gradient(900px 480px at 12% -8%, rgba(183, 236, 255, 0.09), transparent 58%),
+    radial-gradient(640px 380px at 108% 18%, rgba(61, 111, 136, 0.22), transparent 52%),
+    var(--bg);
+  color: var(--p);
   touch-action: pan-y;
 }
 
@@ -47,20 +53,35 @@ body::before {
   inset: 0;
   pointer-events: none;
   z-index: 80;
-  opacity: var(--grain);
-  mix-blend-mode: multiply;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.12  0 0 0 0 0.09  0 0 0 0 0.06  0 0 0 .55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  opacity: 0.22;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 2px,
+    rgba(2, 5, 12, 0.55) 2px,
+    rgba(2, 5, 12, 0.55) 3px
+  );
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 81;
+  opacity: 0.07;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='.55'/></svg>");
 }
 
 a {
   color: inherit;
   text-decoration-thickness: 1px;
   text-underline-offset: 0.22em;
-  text-decoration-color: color-mix(in srgb, var(--ink) 35%, transparent);
+  text-decoration-color: color-mix(in srgb, var(--p-dim) 70%, transparent);
 }
 
 @media (hover: hover) and (pointer: fine) {
-  a:hover { text-decoration-color: var(--accent); color: var(--accent); }
+  a:hover { text-decoration-color: var(--p); color: var(--p-hi); }
 }
 
 button, input, select { font: inherit; color: inherit; }
@@ -89,15 +110,16 @@ button, input, select { font: inherit; color: inherit; }
   place-items: center;
   width: 44px;
   height: 44px;
-  border: 1.5px solid var(--ink);
+  border: 1px solid var(--p-dim);
   font-family: var(--display);
-  font-size: 22px;
-  font-variation-settings: 'SOFT' 30, 'WONK' 1, 'opsz' 72;
+  font-size: 16px;
   line-height: 1;
-  transform: rotate(-6deg);
+  letter-spacing: 0.04em;
   position: relative;
   text-decoration: none;
-  background: var(--paper);
+  background: var(--bg);
+  color: var(--p);
+  box-shadow: inset 0 0 12px rgba(183, 236, 255, 0.12);
 }
 
 .mark::after {
@@ -106,18 +128,17 @@ button, input, select { font: inherit; color: inherit; }
   inset: 0;
   display: grid;
   place-items: center;
-  color: var(--accent);
-  transform: translate(2px, 1.5px);
-  mix-blend-mode: multiply;
-  opacity: 0.85;
+  color: var(--p-hi);
+  transform: translate(1px, 1px);
+  opacity: 0.45;
   pointer-events: none;
 }
 
 .eyebrow {
   font-size: 11px;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--mute);
+  color: var(--p-dim);
   margin: 8px 0 0;
 }
 
@@ -125,65 +146,72 @@ button, input, select { font: inherit; color: inherit; }
   font-style: italic;
   letter-spacing: 0;
   text-transform: none;
-  color: var(--ink-2);
+  color: var(--p-soft);
 }
 
 .mast {
   display: grid;
   gap: 16px;
-  margin: 0 0 36px;
+  margin: 0 0 28px;
 }
 
 .mast h1 {
   font-family: var(--display);
-  font-weight: 560;
-  font-size: clamp(64px, 22vw, 178px);
-  line-height: 0.76;
-  letter-spacing: -0.045em;
+  font-weight: 700;
+  font-size: clamp(28px, 9vw, 64px);
+  line-height: 1.05;
+  letter-spacing: 0.04em;
   margin: 0;
-  font-variation-settings: 'SOFT' 48, 'WONK' 1, 'opsz' 144;
-  transform: rotate(-0.8deg);
-  max-width: 9ch;
-}
-
-.mast h1 span {
-  display: block;
-  margin-left: 0.12em;
-  font-variation-settings: 'SOFT' 20, 'WONK' 1, 'opsz' 144;
+  color: var(--p-hi);
+  text-shadow: 0 0 18px rgba(183, 236, 255, 0.28);
+  max-width: 12ch;
 }
 
 .lede {
-  max-width: 38ch;
-  font-size: 0.95rem;
-  color: var(--ink-2);
-  margin: 12px 0 0 4px;
+  max-width: 42ch;
+  font-size: 0.92rem;
+  color: var(--p-soft);
+  margin: 14px 0 0;
+}
+
+.prompt {
+  margin: 16px 0 0;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--p-dim);
+}
+
+.prompt b {
+  font-weight: 400;
+  color: var(--p);
 }
 
 .side-note {
   font-size: 0.8rem;
-  color: var(--mute);
-  border-left: 1px solid var(--rule);
+  color: var(--p-dim);
+  border-left: 1px solid var(--p-dim);
   padding: 4px 0 4px 14px;
   max-width: 36ch;
 }
 
 .side-note strong {
   display: block;
-  color: var(--ink);
+  font-family: var(--display);
+  color: var(--p);
   font-weight: 400;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  font-size: 10px;
+  font-size: 12px;
   margin-bottom: 8px;
 }
 
 .grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 14px;
+  gap: 18px;
   list-style: none;
   margin: 0;
-  padding: 18px 2px 0;
+  padding: 10px 2px 0;
 }
 
 .tile {
@@ -198,13 +226,21 @@ button, input, select { font: inherit; color: inherit; }
   overflow: hidden;
   text-decoration: none;
   color: inherit;
-  background: #211c16;
-  border: 1px solid var(--ink);
+  background: #010308;
+  border: 1px solid var(--p-dim);
+  box-shadow: inset 0 0 48px rgba(183, 236, 255, 0.07);
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
   -webkit-user-drag: none;
   touch-action: pan-y;
+}
+
+.tile.is-lit .tile-hit {
+  border-color: var(--p);
+  box-shadow:
+    inset 0 0 48px rgba(183, 236, 255, 0.16),
+    0 0 18px rgba(183, 236, 255, 0.18);
 }
 
 .still {
@@ -214,6 +250,7 @@ button, input, select { font: inherit; color: inherit; }
 
 .still-layer,
 .still-layer img,
+.still-layer canvas,
 .still-layer source {
   position: absolute;
   inset: 0;
@@ -221,7 +258,8 @@ button, input, select { font: inherit; color: inherit; }
   height: 100%;
 }
 
-.still-layer img {
+.still-layer img,
+.still-layer canvas {
   object-fit: cover;
   pointer-events: none;
   -webkit-touch-callout: none;
@@ -230,8 +268,9 @@ button, input, select { font: inherit; color: inherit; }
   user-select: none;
 }
 
-.still-bw img {
-  filter: grayscale(1) contrast(1.3) brightness(0.9);
+.still-bw canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }
 
 .still-color {
@@ -244,57 +283,57 @@ button, input, select { font: inherit; color: inherit; }
 
 .tile-label {
   position: absolute;
-  left: 8px;
-  right: 18px;
-  bottom: 8px;
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 2;
-  background: color-mix(in srgb, var(--paper) 90%, transparent);
-  padding: 9px 11px 10px;
-  transform: rotate(-0.7deg);
+  background: linear-gradient(to top, rgba(2, 5, 12, 0.94) 0%, rgba(2, 5, 12, 0.72) 55%, transparent 100%);
+  padding: 28px 12px 10px;
   pointer-events: none;
 }
 
 .tile-label h2 {
   font-family: var(--display);
-  font-size: clamp(18px, 4.5vw, 28px);
-  font-weight: 520;
-  letter-spacing: -0.03em;
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   margin: 0 0 4px;
-  font-variation-settings: 'SOFT' 35, 'WONK' 1, 'opsz' 36;
-  line-height: 0.95;
+  line-height: 1.2;
+  color: var(--p-hi);
 }
 
 .tile-label p {
   margin: 0;
   font-size: 0.75rem;
-  color: var(--ink-2);
+  color: var(--p-soft);
   max-width: 28ch;
 }
 
 .tile .num {
   position: absolute;
-  top: -10px;
-  left: -4px;
+  top: 8px;
+  left: 10px;
   z-index: 3;
   font-family: var(--display);
-  font-size: 22px;
-  font-variation-settings: 'SOFT' 70, 'WONK' 1, 'opsz' 36;
-  color: var(--accent);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  color: var(--p);
   line-height: 1;
-  transform: rotate(-8deg);
   pointer-events: none;
+  text-shadow: 0 0 10px rgba(183, 236, 255, 0.45);
 }
 
 .rule-stamp {
   display: inline-block;
-  border: 1px solid var(--offset);
-  color: var(--offset);
-  font-size: 10px;
-  letter-spacing: 0.14em;
+  border: 1px solid var(--p-dim);
+  color: var(--p);
+  font-family: var(--display);
+  font-size: 11px;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  padding: 4px 7px 3px;
+  padding: 5px 8px 4px;
   margin: 0 0 10px;
-  transform: rotate(-1.5deg);
 }
 
 .colophon {
@@ -304,7 +343,7 @@ button, input, select { font: inherit; color: inherit; }
   padding-top: 16px;
   border-top: 1px solid var(--rule);
   font-size: 0.8rem;
-  color: var(--mute);
+  color: var(--p-dim);
 }
 
 .colophon .placeholders { max-width: 42ch; }
@@ -312,8 +351,9 @@ button, input, select { font: inherit; color: inherit; }
 .colophon code {
   font-family: var(--mono);
   font-size: 11px;
-  color: var(--ink-2);
-  background: color-mix(in srgb, var(--paper-2) 80%, #fff);
+  color: var(--p-soft);
+  background: var(--bg-2);
+  border: 1px solid var(--rule);
   padding: 1px 4px;
 }
 
@@ -329,15 +369,21 @@ button, input, select { font: inherit; color: inherit; }
 
 .back {
   text-decoration: none;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   font-size: 11px;
   min-height: 44px;
   display: inline-flex;
   align-items: center;
+  color: var(--p-soft);
 }
 
-.counter { color: var(--mute); }
+.counter {
+  font-family: var(--display);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--p-dim);
+}
 
 .specimen-head {
   display: grid;
@@ -347,33 +393,33 @@ button, input, select { font: inherit; color: inherit; }
 
 .specimen-head h1 {
   font-family: var(--display);
-  font-size: clamp(40px, 14vw, 92px);
-  line-height: 0.82;
-  letter-spacing: -0.04em;
+  font-size: clamp(22px, 7.2vw, 44px);
+  line-height: 1.15;
+  letter-spacing: 0.04em;
   margin: 0;
-  font-variation-settings: 'SOFT' 40, 'WONK' 1, 'opsz' 96;
-  transform: rotate(-0.5deg);
-  max-width: 10ch;
+  color: var(--p-hi);
+  text-shadow: 0 0 16px rgba(183, 236, 255, 0.22);
+  max-width: 14ch;
 }
 
 .studio-note {
   font-size: 0.85rem;
-  color: var(--ink-2);
-  max-width: 38ch;
+  color: var(--p-soft);
+  max-width: 42ch;
 }
 
 .studio-note time {
   display: block;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--mute);
+  color: var(--p-dim);
   margin-bottom: 8px;
 }
 
 .stage-frame {
-  background: color-mix(in srgb, var(--paper-2) 55%, #fff);
-  border: 1px solid var(--ink);
+  background: var(--bg-2);
+  border: 1px solid var(--p-dim);
   min-height: min(62dvh, 520px);
   display: grid;
   place-items: center;
@@ -385,6 +431,7 @@ button, input, select { font: inherit; color: inherit; }
   user-select: none;
   -webkit-touch-callout: none;
   overscroll-behavior: contain;
+  box-shadow: inset 0 0 80px rgba(183, 236, 255, 0.06);
 }
 
 .hint {
@@ -392,10 +439,9 @@ button, input, select { font: inherit; color: inherit; }
   left: 12px;
   right: 12px;
   bottom: 10px;
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--mute);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--p-dim);
 }
 
 .shard-field {
@@ -426,14 +472,8 @@ button, input, select { font: inherit; color: inherit; }
     grid-template-columns: minmax(0, 1.4fr) minmax(200px, 0.7fr);
     gap: 18px 36px;
     align-items: end;
-    margin-left: 3vw;
   }
-  .mast h1 { transform: rotate(-1.15deg); }
-  .lede { transform: rotate(0.4deg); margin-left: 12px; }
-  .side-note {
-    margin: 0 0 28px auto;
-    transform: rotate(1.1deg);
-  }
+  .mast h1 { font-size: clamp(40px, 6vw, 72px); }
   .colophon {
     grid-template-columns: 1fr auto;
     margin-top: 64px;
@@ -441,9 +481,8 @@ button, input, select { font: inherit; color: inherit; }
   .specimen-head {
     grid-template-columns: minmax(0, 1.3fr) minmax(200px, 0.7fr);
     gap: 20px 48px;
-    margin-left: 2vw;
   }
-  .studio-note { transform: rotate(0.7deg); margin-top: 12px; }
+  .studio-note { margin-top: 12px; }
   .stage-frame { padding: 28px 18px 40px; }
 }
 
@@ -454,10 +493,11 @@ button, input, select { font: inherit; color: inherit; }
     grid-row: span 2;
   }
   .tile-feature .tile-label {
-    max-width: 62%;
-    transform: rotate(-1.2deg) translate(8px, 6px);
+    max-width: 72%;
+    padding: 40px 16px 14px;
   }
-  .tile-feature .tile-label h2 { font-size: clamp(28px, 4vw, 52px); }
+  .tile-feature .tile-label h2 { font-size: 22px; }
+  .tile-feature .num { font-size: 16px; }
 }
 
 @media (min-width: 900px) {
@@ -469,9 +509,6 @@ button, input, select { font: inherit; color: inherit; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mark, .mast h1, .num, .specimen-head h1, .side-note, .lede, .tile-label {
-    transform: none !important;
-  }
   .tile.is-lit .still-color {
     -webkit-mask-image: none;
     mask-image: none;
@@ -492,10 +529,11 @@ button, input, select { font: inherit; color: inherit; }
   position: absolute;
   right: 8px;
   top: 8px;
-  font-size: 10px;
-  letter-spacing: 0.16em;
+  font-family: var(--display);
+  font-size: 12px;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--mute);
+  color: var(--p-dim);
 }
 
 .gravity {
@@ -518,12 +556,13 @@ button, input, select { font: inherit; color: inherit; }
 .g-box {
   width: 44px;
   height: 44px;
-  border: 1.5px solid var(--ink);
-  background: var(--paper);
+  border: 1.5px solid var(--p-dim);
+  background: var(--bg);
   cursor: pointer;
   position: relative;
   padding: 0;
   touch-action: manipulation;
+  box-shadow: inset 0 0 10px rgba(183, 236, 255, 0.08);
 }
 
 .g-box canvas {
@@ -535,8 +574,15 @@ button, input, select { font: inherit; color: inherit; }
   pointer-events: none;
 }
 
+.g-item .label { color: var(--p-soft); }
+
+.g-item.done .g-box {
+  border-color: var(--p);
+  background: color-mix(in srgb, var(--p) 28%, var(--bg));
+}
+
 .g-item.done .label {
-  color: var(--mute);
+  color: var(--p-dim);
   text-decoration: line-through;
   text-decoration-thickness: 1px;
 }
@@ -551,13 +597,14 @@ button, input, select { font: inherit; color: inherit; }
 
 .breath-btn {
   appearance: none;
-  border: 1.5px solid var(--ink);
-  background: var(--paper);
+  border: 1.5px solid var(--p-dim);
+  background: var(--bg);
+  color: var(--p);
   padding: 16px 24px 14px;
   min-height: 52px;
   font-family: var(--display);
-  font-size: 1.25rem;
-  font-variation-settings: 'SOFT' 50, 'WONK' 1, 'opsz' 24;
+  font-size: 16px;
+  letter-spacing: 0.04em;
   cursor: pointer;
   transform-origin: 50% 70%;
   will-change: transform;
@@ -567,11 +614,12 @@ button, input, select { font: inherit; color: inherit; }
 }
 
 .breath-btn.alt {
-  background: var(--ink);
-  color: var(--paper);
+  background: color-mix(in srgb, var(--p) 22%, var(--bg));
+  color: var(--p-hi);
+  border-color: var(--p);
 }
 
-.breath-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.breath-btn:focus-visible { outline: 2px solid var(--p); outline-offset: 4px; }
 
 .breath-status {
   width: 100%;
@@ -579,7 +627,7 @@ button, input, select { font: inherit; color: inherit; }
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--mute);
+  color: var(--p-dim);
   margin-top: 16px;
   min-height: 1.2em;
 }
@@ -588,29 +636,31 @@ button, input, select { font: inherit; color: inherit; }
   width: 72px;
   height: 72px;
   margin: 0 auto 12px;
-  border: 1.5px solid var(--ink);
+  border: 1.5px solid var(--p-dim);
   border-radius: 50%;
   position: relative;
+  box-shadow: inset 0 0 16px rgba(183, 236, 255, 0.16);
 }
 
 .lung-meter i {
   position: absolute;
   inset: 18%;
   border-radius: 50%;
-  background: var(--accent);
-  opacity: 0.35;
+  background: var(--p);
+  opacity: 0.45;
   transform: scale(0.7);
+  box-shadow: 0 0 16px rgba(183, 236, 255, 0.5);
 }
 
 .cursor-lung {
   position: fixed;
   width: 44px;
   height: 44px;
-  border: 1.5px solid var(--accent);
+  border: 1.5px solid var(--p);
   border-radius: 50%;
   pointer-events: none;
   z-index: 60;
-  mix-blend-mode: multiply;
+  mix-blend-mode: screen;
   transform: translate(-50%, -50%);
   display: none;
 }
@@ -619,7 +669,7 @@ button, input, select { font: inherit; color: inherit; }
   width: min(100%, 480px);
   height: 170px;
   position: relative;
-  border-bottom: 1.5px solid var(--ink);
+  border-bottom: 1.5px solid var(--p-dim);
   cursor: text;
   touch-action: none;
 }
@@ -652,8 +702,9 @@ button, input, select { font: inherit; color: inherit; }
   position: absolute;
   right: 0;
   top: 0;
-  font-size: 11px;
-  color: var(--mute);
+  font-family: var(--display);
+  font-size: 14px;
+  color: var(--p-dim);
 }
 
 .thermal {
@@ -672,8 +723,9 @@ button, input, select { font: inherit; color: inherit; }
   width: 100%;
   text-align: left;
   padding: 12px 14px;
-  border: 1.5px solid var(--ink);
-  background: var(--paper);
+  border: 1.5px solid var(--p-dim);
+  background: var(--bg);
+  color: var(--p);
   cursor: pointer;
   display: flex;
   justify-content: space-between;
@@ -685,8 +737,8 @@ button, input, select { font: inherit; color: inherit; }
   list-style: none;
   margin: 6px 0 0;
   padding: 0;
-  border: 1.5px solid var(--ink);
-  background: var(--paper);
+  border: 1.5px solid var(--p-dim);
+  background: var(--bg);
   overflow: hidden;
 }
 
@@ -699,23 +751,32 @@ button, input, select { font: inherit; color: inherit; }
   border: 0;
   border-bottom: 1px solid var(--rule);
   background: transparent;
+  color: var(--p-soft);
   cursor: pointer;
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
   position: relative;
   touch-action: manipulation;
+}
+
+.thermal-opt span:last-child {
+  flex: 0 0 auto;
+  letter-spacing: 0.04em;
 }
 
 .thermal-opt:last-child { border-bottom: 0; }
 
 .thermal-opt.hot {
-  background: color-mix(in srgb, var(--accent) 16%, var(--paper));
+  background: color-mix(in srgb, var(--p) 38%, var(--bg));
+  color: var(--p-hi);
 }
 
 .thermal-opt.cold {
-  color: color-mix(in srgb, var(--offset) 70%, var(--mute));
+  color: var(--p-dim);
   background:
-    repeating-linear-gradient(-18deg, transparent, transparent 7px, color-mix(in srgb, var(--frost) 35%, transparent) 7px, color-mix(in srgb, var(--frost) 35%, transparent) 8px);
+    repeating-linear-gradient(-18deg, transparent, transparent 7px, color-mix(in srgb, var(--p-dim) 28%, transparent) 7px, color-mix(in srgb, var(--p-dim) 28%, transparent) 8px);
 }
 
 .shatter-ui {
@@ -726,8 +787,9 @@ button, input, select { font: inherit; color: inherit; }
 .shatter-ui .open-btn,
 .modal-card button {
   appearance: none;
-  border: 1.5px solid var(--ink);
-  background: var(--paper);
+  border: 1.5px solid var(--p-dim);
+  background: var(--bg);
+  color: var(--p);
   padding: 10px 16px;
   cursor: pointer;
   touch-action: manipulation;
@@ -738,33 +800,33 @@ button, input, select { font: inherit; color: inherit; }
   inset: 0;
   display: grid;
   place-items: center;
-  background: color-mix(in srgb, var(--ink) 18%, transparent);
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
   z-index: 4;
   padding: 12px;
 }
 
 .modal-card {
   width: min(92%, 340px);
-  background: var(--paper);
-  border: 1.5px solid var(--ink);
+  background: var(--bg-2);
+  border: 1.5px solid var(--p);
   padding: 24px 20px 20px;
   text-align: left;
-  box-shadow: 6px 8px 0 color-mix(in srgb, var(--ink) 18%, transparent);
+  box-shadow: 6px 8px 0 color-mix(in srgb, var(--p) 18%, transparent);
   touch-action: none;
 }
 
 .modal-card h3 {
   font-family: var(--display);
-  font-size: 1.6rem;
+  font-size: 18px;
   margin: 0 0 8px;
-  font-variation-settings: 'SOFT' 40, 'WONK' 1, 'opsz' 36;
-  letter-spacing: -0.03em;
+  letter-spacing: 0.04em;
+  color: var(--p-hi);
 }
 
 .modal-card p {
   margin: 0 0 18px;
   font-size: 0.88rem;
-  color: var(--ink-2);
+  color: var(--p-soft);
 }
 
 .modal-actions { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -797,13 +859,14 @@ button, input, select { font: inherit; color: inherit; }
   background: transparent;
   text-align: left;
   min-height: 56px;
+  color: var(--p-soft);
 }
 
 .p-disc {
   width: 48px;
   height: 48px;
-  border: 1.5px solid var(--ink);
-  background: #efe8d6;
+  border: 1.5px solid var(--p-dim);
+  background: var(--bg);
   position: relative;
 }
 
@@ -812,10 +875,11 @@ button, input, select { font: inherit; color: inherit; }
 .p-label { font-size: 0.95rem; }
 
 .p-meta {
-  font-size: 10px;
-  letter-spacing: 0.12em;
+  font-family: var(--display);
+  font-size: 11px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--mute);
+  color: var(--p-dim);
 }
 
 body.is-still .chrome,
@@ -833,8 +897,16 @@ body.is-still .stage-frame {
   padding: 48px;
   border: 0;
   overflow: hidden;
+  background: var(--bg);
+  box-shadow: none;
 }
+body.is-still .viscous { transform: scale(1.55); }
+body.is-still .gravity { transform: scale(1.12); width: 460px; }
+body.is-still .breathing { transform: scale(1.25); }
+body.is-still .lung-meter { transform: scale(1.2); margin-bottom: 22px; }
 body.is-still .magnetic { width: 560px; height: 280px; }
-body.is-still .thermal { width: 400px; }
-body.is-still .pressure { width: 460px; }
-body.is-still::before { opacity: 0.05; }
+body.is-still .elastic { transform: scale(1.45); }
+body.is-still .thermal { width: 420px; transform: scale(1.28); }
+body.is-still .pressure { width: 520px; transform: none; }
+body.is-still::before,
+body.is-still::after { opacity: 0; }

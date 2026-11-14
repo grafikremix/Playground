@@ -48,13 +48,13 @@ async function treat(buf, crop) {
   const base = sharp(buf)
     .extract(region)
     .resize(SIZE, SIZE, { fit: 'cover' })
-    .modulate({ brightness: 0.97, saturation: 1.18 })
-    .linear(1.18, -20)
+    .modulate({ brightness: 1.08, saturation: 1.45 })
+    .linear(1.32, -12)
   const raw = await base.toBuffer()
   const noise = await grain(SIZE)
   const composed = sharp(raw)
-            .composite([{ input: noise, blend: 'overlay', opacity: 0.22 }])
-    .sharpen({ sigma: 0.6 })
+            .composite([{ input: noise, blend: 'overlay', opacity: 0.12 }])
+    .sharpen({ sigma: 0.85 })
   return composed
 }
 
@@ -74,7 +74,8 @@ async function main() {
     const href = `${url.replace(/\/$/, '')}/specimens/${spec.slug}.html?still=1`
     console.log('still', spec.slug, href)
     await page.goto(href, { waitUntil: 'networkidle' })
-    await page.waitForTimeout(spec.slug === 'shattering' ? 220 : 650)
+    await page.evaluate(() => document.fonts.ready)
+    await page.waitForTimeout(spec.slug === 'shattering' ? 180 : 700)
     const target = page.locator('.stage-frame')
     await target.waitFor({ state: 'visible' })
     const buf = await target.screenshot({ type: 'png' })
