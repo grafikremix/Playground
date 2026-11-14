@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Terminal E — vectorscope / Space Mono</title>
+    <link rel="stylesheet" href="./fonts.css" />
+    <link rel="stylesheet" href="./terminal-shell.css" />
+    <style>
+      :root {
+        --bg: #07010c;
+        --p: #ff3dce;
+        --p2: #2de8ff;
+        --p-dim: #6b2a78;
+        --p-soft: #e07ad4;
+        --p-hi: #2de8ff;
+        --glow: rgba(255, 40, 200, 0.16);
+        --body: 'Space Mono', ui-monospace, monospace;
+        --display: 'Space Mono', ui-monospace, monospace;
+        --still-bg: #050008;
+      }
+      h1 {
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .prompt { color: var(--p2); }
+      .n { color: var(--p2); }
+      .row h2::before { color: var(--p2); }
+      .lede { color: var(--p2); }
+    </style>
+  </head>
+  <body>
+    <div class="crt">
+      <div class="bar">
+        <span>grafikremix@studio</span>
+        <span><b>PLAYGROUND</b></span>
+        <span>var E · vectorscope</span>
+        <span>Space Mono</span>
+        <span>2026</span>
+      </div>
+      <h1>ls ./stills</h1>
+      <p class="lede" id="lede"></p>
+      <p class="prompt">$ <span>hold a frame for colour. tap to open.</span></p>
+      <ol class="grid" id="grid"></ol>
+    </div>
+    <script type="module">
+      import { mountTerminal } from './terminal-kit.js'
+      await mountTerminal()
+    </script>
+  </body>
+</html>

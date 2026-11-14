@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Playground — phosphor</title>
+    <link rel="stylesheet" href="./fonts.css" />
+    <style>
+      :root {
+        --p: #6cff6a;
+        --p-dim: #1e6b28;
+        --bg: #010201;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; background: var(--bg); color: var(--p); }
+      body {
+        font-family: 'Share Tech Mono', 'IBM Plex Mono', ui-monospace, monospace;
+        font-size: 13px;
+        line-height: 1.4;
+        min-height: 100dvh;
+        text-shadow: 0 0 8px rgba(80, 255, 90, 0.25);
+      }
+      body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 30;
+        background:
+          repeating-linear-gradient(
+            to bottom,
+            transparent 0 3px,
+            rgba(0, 0, 0, 0.16) 3px 4px
+          );
+      }
+      .crt {
+        position: relative;
+        z-index: 1;
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 20px 14px 64px;
+      }
+      .bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 18px;
+        border: 1px solid var(--p-dim);
+        padding: 6px 8px;
+        color: var(--p);
+        letter-spacing: 0.04em;
+      }
+      .bar b { font-weight: 400; color: #b7ffb0; }
+      h1 {
+        font-size: clamp(22px, 5vw, 32px);
+        font-weight: 400;
+        letter-spacing: 0.18em;
+        margin: 22px 0 8px;
+        line-height: 1.3;
+      }
+      .lede {
+        margin: 0 0 8px;
+        max-width: 62ch;
+        color: #8fe889;
+      }
+      .prompt { color: var(--p-dim); margin: 0 0 18px; }
+      .prompt span { color: var(--p); }
+      .grid {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 18px 16px;
+      }
+      .tile { margin: 0; }
+      .cell {
+        display: block;
+        text-decoration: none;
+        color: inherit;
+        -webkit-touch-callout: none;
+        user-select: none;
+      }
+      .frame {
+        border: 1px solid var(--p-dim);
+        padding: 4px;
+      }
+      .still {
+        position: relative;
+        aspect-ratio: 1;
+        overflow: hidden;
+        background: #000;
+      }
+      .still-layer, .still-layer img, .still canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        pointer-events: none;
+      }
+      .still canvas { image-rendering: pixelated; }
+      .still-bw { filter: none; }
+      .still-color {
+        --mx: 50%;
+        --my: 50%;
+        --r: 0px;
+        -webkit-mask-image: radial-gradient(circle at var(--mx) var(--my), #000 0px, #000 var(--r), transparent calc(var(--r) + min(70px, var(--r) + 0.1px)));
+        mask-image: radial-gradient(circle at var(--mx) var(--my), #000 0px, #000 var(--r), transparent calc(var(--r) + min(70px, var(--r) + 0.1px)));
+      }
+      .row {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        margin-top: 6px;
+        font-size: 12px;
+      }
+      .row h2 {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 400;
+        text-transform: lowercase;
+      }
+      .row h2::before { content: './'; color: var(--p-dim); }
+      .n { color: var(--p-dim); }
+      .blurb { margin: 2px 0 0; color: #4fa356; }
+      @media (min-width: 560px) {
+        .grid { grid-template-columns: 1fr 1fr; }
+      }
+      @media (min-width: 1020px) {
+        .grid { grid-template-columns: 1fr 1fr 1fr 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="crt">
+      <div class="bar">
+        <span>grafikremix@studio</span>
+        <span><b>PLAYGROUND</b></span>
+        <span>phosphor p1</span>
+        <span>80×25</span>
+        <span>2026</span>
+      </div>
+      <h1>ls ./stills</h1>
+      <p class="lede" id="lede"></p>
+      <p class="prompt">$ <span>hold a frame for colour. tap to open.</span></p>
+      <ol class="grid" id="grid"></ol>
+    </div>
+    <script type="module">
+      import { experiments, lede, picture, still } from './catalog.js'
+      import { bindTiles } from './bloom.js'
+
+      document.getElementById('lede').textContent = lede
+      document.getElementById('grid').innerHTML = experiments
+        .map(
+          (s) => `
+        <li class="tile" data-tile>
+          <a class="cell" data-hit href="../specimens/${s.slug}.html" draggable="false">
+            <div class="frame">
+              <div class="still">
+                ${picture(s.slug, 'still-bw', s.title, s.blurb)}
+                ${picture(s.slug, 'still-color', s.title, s.blurb)}
+              </div>
+            </div>
+            <div class="row"><span class="n">${s.n}</span><h2>${s.slug}.still</h2></div>
+            <p class="blurb">${s.title} — ${s.blurb}</p>
+          </a>
+        </li>`,
+        )
+        .join('')
+
+      const bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]
+      async function dither(img) {
+        await img.decode().catch(() => {})
+        const size = 148
+        const c = document.createElement('canvas')
+        c.width = size
+        c.height = size
+        const ctx = c.getContext('2d', { willReadFrequently: true })
+        ctx.filter = 'contrast(1.55)'
+        ctx.drawImage(img, 0, 0, size, size)
+        ctx.filter = 'none'
+        const data = ctx.getImageData(0, 0, size, size)
+        const d = data.data
+        for (let y = 0; y < size; y++) {
+          for (let x = 0; x < size; x++) {
+            const i = (y * size + x) * 4
+            const lum = d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11
+            const t = (bayer[(y % 4) * 4 + (x % 4)] + 0.5) / 16
+            const ink = 1 - lum / 255
+            const on = ink > t * 0.5 + 0.16
+            d[i] = on ? 108 : 0
+            d[i + 1] = on ? 255 : 4
+            d[i + 2] = on ? 106 : 0
+            d[i + 3] = 255
+          }
+        }
+        ctx.putImageData(data, 0, 0)
+        img.replaceWith(c)
+      }
+
+      await Promise.all(
+        [...document.querySelectorAll('.still-bw img')].map((img) => dither(img)),
+      )
+      bindTiles()
+      void still
+    </script>
+  </body>
+</html>

@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Playground — specimen cabinet</title>
+    <link rel="stylesheet" href="./fonts.css" />
+    <style>
+      :root {
+        --room: #1b1a18;
+        --spot: #2c2925;
+        --bone: #d8d0c2;
+        --brass: #a89472;
+        --quiet: #8c8478;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; background: #121110; color: var(--bone); }
+      body {
+        font-family: 'Cormorant Garamond', Palatino, 'Palatino Linotype', serif;
+        min-height: 100dvh;
+        background:
+          radial-gradient(ellipse 80% 50% at 50% 12%, #2a2723 0%, transparent 70%),
+          #141312;
+      }
+      body::after {
+        content: '';
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.45) 100%);
+        z-index: 8;
+      }
+      .room {
+        position: relative;
+        z-index: 1;
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 36px 22px 96px;
+      }
+      .kicker {
+        font-size: 12px;
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: var(--brass);
+        margin: 0 0 18px;
+      }
+      h1 {
+        font-size: clamp(36px, 8vw, 56px);
+        font-weight: 600;
+        letter-spacing: 0.01em;
+        margin: 0;
+        line-height: 1.15;
+      }
+      .sub {
+        margin: 10px 0 0;
+        font-style: italic;
+        font-size: 20px;
+        color: var(--quiet);
+      }
+      .lede {
+        margin: 18px 0 0;
+        max-width: 38em;
+        font-size: 18px;
+        line-height: 1.5;
+        color: var(--bone);
+      }
+      .rule {
+        height: 1px;
+        background: color-mix(in srgb, var(--brass) 55%, transparent);
+        margin: 28px 0 36px;
+        border: 0;
+      }
+      .grid {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 40px 48px;
+      }
+      .tile { margin: 0; }
+      figure { margin: 0; }
+      .plinth {
+        display: block;
+        text-decoration: none;
+        color: inherit;
+        -webkit-touch-callout: none;
+        user-select: none;
+      }
+      .object {
+        position: relative;
+        aspect-ratio: 1;
+        background: var(--spot);
+        padding: 18px;
+        box-shadow:
+          0 30px 70px rgba(0,0,0,0.55),
+          inset 0 0 80px rgba(0,0,0,0.35);
+      }
+      .object::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: radial-gradient(circle at 50% 30%, rgba(255,244,220,0.08), transparent 58%);
+      }
+      .still {
+        position: absolute;
+        inset: 18px;
+        overflow: hidden;
+      }
+      .still-layer, .still-layer img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        pointer-events: none;
+      }
+      .still-bw img { filter: grayscale(1) contrast(1.2) brightness(0.78); }
+      .still-color {
+        --mx: 50%;
+        --my: 50%;
+        --r: 0px;
+        -webkit-mask-image: radial-gradient(circle at var(--mx) var(--my), #000 0px, #000 var(--r), transparent calc(var(--r) + min(90px, var(--r) + 0.1px)));
+        mask-image: radial-gradient(circle at var(--mx) var(--my), #000 0px, #000 var(--r), transparent calc(var(--r) + min(90px, var(--r) + 0.1px)));
+      }
+      figcaption {
+        padding: 14px 2px 0;
+      }
+      .label-top {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--brass);
+        margin-bottom: 6px;
+      }
+      figcaption h2 {
+        margin: 0;
+        font-size: 26px;
+        font-weight: 600;
+        line-height: 1.2;
+      }
+      figcaption p {
+        margin: 4px 0 0;
+        font-style: italic;
+        font-size: 17px;
+        color: var(--quiet);
+      }
+      .foot {
+        margin-top: 72px;
+        font-size: 14px;
+        color: var(--quiet);
+        font-style: italic;
+      }
+      @media (min-width: 760px) {
+        .room { padding-top: 72px; }
+        .grid { grid-template-columns: 1fr 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="room">
+      <p class="kicker">Collection no. 08 · grafikremix</p>
+      <h1>Playground</h1>
+      <p class="sub">Eight interface specimens, 2026.</p>
+      <p class="lede" id="lede"></p>
+      <hr class="rule" />
+      <ol class="grid" id="grid"></ol>
+      <p class="foot">Hold a specimen for colour. A tap opens it. Please do not lean on the glass.</p>
+    </div>
+    <script type="module">
+      import { experiments, lede, picture } from './catalog.js'
+      import { bindTiles } from './bloom.js'
+      document.getElementById('lede').textContent = lede
+      document.getElementById('grid').innerHTML = experiments
+        .map(
+          (s) => `
+        <li class="tile" data-tile>
+          <figure>
+            <a class="plinth" data-hit href="../specimens/${s.slug}.html" draggable="false">
+              <div class="object">
+                <div class="still">${picture(s.slug, 'still-bw', s.title, s.blurb)}${picture(s.slug, 'still-color', s.title, s.blurb)}</div>
+              </div>
+            </a>
+            <figcaption>
+              <div class="label-top"><span>Fig. ${s.n}</span><span>studio notes</span></div>
+              <h2>${s.title}</h2>
+              <p>${s.blurb}</p>
+            </figcaption>
+          </figure>
+        </li>`,
+        )
+        .join('')
+      bindTiles()
+    </script>
+  </body>
+</html>

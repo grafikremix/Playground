@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Terminal variants — swatches</title>
+    <link rel="stylesheet" href="./fonts.css" />
+    <style>
+      html, body { margin: 0; background: #0c0c0c; color: #d8d4cc; }
+      body { padding: 28px 24px 32px; }
+      h1 {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 12px;
+        font-weight: 400;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        margin: 0 0 22px;
+        color: #8a8680;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 14px;
+      }
+      .card {
+        border: 1px solid #2a2a2a;
+        padding: 14px 12px 16px;
+        min-height: 0;
+      }
+      .letter {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        margin-bottom: 10px;
+        color: #8a8680;
+      }
+      .chips { display: flex; gap: 6px; margin-bottom: 10px; }
+      .chip {
+        width: 28px;
+        height: 28px;
+        border: 1px solid #3a3a3a;
+      }
+      .hex {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 10px;
+        line-height: 1.55;
+        color: #9a958c;
+        margin: 0 0 16px;
+      }
+      .sample-display {
+        margin: 0 0 8px;
+        line-height: 1.15;
+        color: var(--p);
+      }
+      .sample-body {
+        margin: 0;
+        font-size: 12px;
+        line-height: 1.4;
+        color: var(--p-soft);
+      }
+      .a { --p: #5dff61; --p-soft: #7dcb7e; background: #010301; }
+      .a .sample-display { font-family: 'JetBrains Mono', monospace; font-weight: 500; font-size: 22px; }
+      .a .sample-body { font-family: 'JetBrains Mono', monospace; }
+      .b { --p: #ffb347; --p-soft: #d4a05a; background: #120e09; }
+      .b .sample-display { font-family: 'IBM Plex Serif', serif; font-style: italic; font-size: 26px; }
+      .b .sample-body { font-family: 'IBM Plex Mono', monospace; }
+      .c { --p: #b7ecff; --p-soft: #7fb6cc; background: #02050c; }
+      .c .sample-display { font-family: Silkscreen, monospace; font-size: 16px; text-transform: uppercase; letter-spacing: 0.04em; }
+      .c .sample-body { font-family: 'IBM Plex Mono', monospace; }
+      .d { --p: #ff2416; --p-soft: #c45a4e; background: #000; }
+      .d .sample-display { font-family: Oswald, sans-serif; font-weight: 700; font-size: 28px; text-transform: uppercase; letter-spacing: -0.02em; }
+      .d .sample-body { font-family: 'IBM Plex Mono', monospace; }
+      .e { --p: #ff3dce; --p-soft: #2de8ff; background: #07010c; }
+      .e .sample-display { font-family: 'Space Mono', monospace; font-weight: 700; font-size: 20px; text-transform: uppercase; }
+      .e .sample-body { font-family: 'Space Mono', monospace; }
+      .f { --p: #e6dfd1; --p-soft: #b7b0a4; background: #1b1d1f; }
+      .f .sample-display { font-family: Doto, monospace; font-size: 20px; letter-spacing: 0.18em; text-transform: uppercase; }
+      .f .sample-body { font-family: 'IBM Plex Mono', monospace; }
+    </style>
+  </head>
+  <body>
+    <h1>Terminal · six palettes</h1>
+    <div class="row">
+      <article class="card a">
+        <div class="letter">A · P1 green</div>
+        <div class="chips">
+          <i class="chip" style="background:#010301"></i>
+          <i class="chip" style="background:#5dff61"></i>
+          <i class="chip" style="background:#1f6a28"></i>
+        </div>
+        <p class="hex">#010301  #5DFF61  #1F6A28<br />JetBrains Mono</p>
+        <p class="sample-display">ls ./stills</p>
+        <p class="sample-body">A switch that has to slosh.</p>
+      </article>
+      <article class="card b">
+        <div class="letter">B · P3 amber</div>
+        <div class="chips">
+          <i class="chip" style="background:#120e09"></i>
+          <i class="chip" style="background:#ffb347"></i>
+          <i class="chip" style="background:#8a5314"></i>
+        </div>
+        <p class="hex">#120E09  #FFB347  #8A5314<br />IBM Plex Serif italic<br />IBM Plex Mono</p>
+        <p class="sample-display">ls ./stills</p>
+        <p class="sample-body">A switch that has to slosh.</p>
+      </article>
+      <article class="card c">
+        <div class="letter">C · ice</div>
+        <div class="chips">
+          <i class="chip" style="background:#02050c"></i>
+          <i class="chip" style="background:#b7ecff"></i>
+          <i class="chip" style="background:#3d6f88"></i>
+        </div>
+        <p class="hex">#02050C  #B7ECFF  #3D6F88<br />Silkscreen<br />IBM Plex Mono</p>
+        <p class="sample-display">ls ./stills</p>
+        <p class="sample-body">A switch that has to slosh.</p>
+      </article>
+      <article class="card d">
+        <div class="letter">D · radar</div>
+        <div class="chips">
+          <i class="chip" style="background:#000000"></i>
+          <i class="chip" style="background:#ff2416"></i>
+          <i class="chip" style="background:#6a100c"></i>
+        </div>
+        <p class="hex">#000000  #FF2416  #6A100C<br />Oswald<br />IBM Plex Mono</p>
+        <p class="sample-display">ls ./stills</p>
+        <p class="sample-body">A switch that has to slosh.</p>
+      </article>
+      <article class="card e">
+        <div class="letter">E · vectorscope</div>
+        <div class="chips">
+          <i class="chip" style="background:#07010c"></i>
+          <i class="chip" style="background:#ff3dce"></i>
+          <i class="chip" style="background:#2de8ff"></i>
+        </div>
+        <p class="hex">#07010C  #FF3DCE  #2DE8FF<br />Space Mono</p>
+        <p class="sample-display">ls ./stills</p>
+        <p class="sample-body">A switch that has to slosh.</p>
+      </article>
+      <article class="card f">
+        <div class="letter">F · bone</div>
+        <div class="chips">
+          <i class="chip" style="background:#1b1d1f"></i>
+          <i class="chip" style="background:#e6dfd1"></i>
+          <i class="chip" style="background:#6d6a64"></i>
+        </div>
+        <p class="hex">#1B1D1F  #E6DFD1  #6D6A64<br />Doto<br />IBM Plex Mono</p>
+        <p class="sample-display">ls ./stills</p>
+        <p class="sample-body">A switch that has to slosh.</p>
+      </article>
+    </div>
+  </body>
+</html>
