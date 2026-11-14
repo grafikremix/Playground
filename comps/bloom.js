@@ -1,0 +1,130 @@
+const HOLD = 260
+const reduced =
+  typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+
+export function bindTiles(root = document) {
+  root.querySelectorAll('[data-tile]').forEach(bindTile)
+}
+
+function bindTile(tile) {
+  const hit = tile.querySelector('[data-hit]')
+  const color = tile.querySelector('.still-color')
+  if (!hit || !color) return
+
+  let r = 0
+  let target = 0
+  let anim = 0
+  let mx = 48
+  let my = 42
+  let held = false
+  let moved = false
+  let suppress = false
+  let sx = 0
+  let sy = 0
+  let timer = 0
+  let ptype = 'mouse'
+  let t0 = 0
+
+  const cover = () => {
+    const b = tile.getBoundingClientRect()
+    return Math.hypot(b.width, b.height) * 0.92
+  }
+
+  const paint = () => {
+    color.style.setProperty('--mx', `${mx}%`)
+    color.style.setProperty('--my', `${my}%`)
+    color.style.setProperty('--r', `${r}px`)
+  }
+
+  const tick = () => {
+    anim = 0
+    if (target > 0) {
+      const t = performance.now() - t0
+      r = reduced ? target : target * (1 - Math.exp(-t / 280))
+      if (r < target - 2) anim = requestAnimationFrame(tick)
+      else r = target
+    } else {
+      r += (0 - r) * (reduced ? 1 : 0.22)
+      if (r > 0.6) anim = requestAnimationFrame(tick)
+      else r = 0
+    }
+    paint()
+  }
+
+  const local = (e) => {
+    const b = tile.getBoundingClientRect()
+    mx = ((e.clientX - b.left) / b.width) * 100
+    my = ((e.clientY - b.top) / b.height) * 100
+  }
+
+  const bloom = (e) => {
+    local(e)
+    if (target === 0) t0 = performance.now()
+    target = cover()
+    if (!anim) anim = requestAnimationFrame(tick)
+  }
+
+  const dim = () => {
+    target = 0
+    tile.classList.remove('is-lit')
+    if (!anim) anim = requestAnimationFrame(tick)
+  }
+
+  hit.addEventListener('pointerenter', (e) => {
+    if (e.pointerType === 'mouse') {
+      tile.classList.add('is-lit')
+      bloom(e)
+    }
+  })
+  hit.addEventListener('pointermove', (e) => {
+    if (e.pointerType === 'mouse') {
+      bloom(e)
+      return
+    }
+    if (!timer && !held) return
+    if (Math.hypot(e.clientX - sx, e.clientY - sy) > 14) {
+      moved = true
+      clearTimeout(timer)
+      timer = 0
+    }
+    if (held) bloom(e)
+  })
+  hit.addEventListener('pointerdown', (e) => {
+    if (e.button) return
+    held = false
+    moved = false
+    suppress = false
+    ptype = e.pointerType
+    sx = e.clientX
+    sy = e.clientY
+    local(e)
+    paint()
+    timer = window.setTimeout(() => {
+      held = true
+      suppress = true
+      tile.classList.add('is-lit')
+      bloom(e)
+    }, HOLD)
+  })
+  hit.addEventListener('pointerup', () => {
+    clearTimeout(timer)
+    timer = 0
+    if (held && ptype !== 'mouse') dim()
+  })
+  hit.addEventListener('pointercancel', () => {
+    clearTimeout(timer)
+    timer = 0
+    dim()
+  })
+  hit.addEventListener('pointerleave', () => {
+    clearTimeout(timer)
+    timer = 0
+    held = false
+    dim()
+  })
+  hit.addEventListener('click', (e) => {
+    if (suppress || moved) e.preventDefault()
+  })
+  hit.addEventListener('contextmenu', (e) => e.preventDefault())
+  hit.addEventListener('dragstart', (e) => e.preventDefault())
+}
