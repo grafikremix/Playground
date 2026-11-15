@@ -172,6 +172,7 @@ button, input, select { font: inherit; color: inherit; }
   font-size: 0.92rem;
   color: var(--p-soft);
   margin: 14px 0 0;
+  text-wrap: pretty;
 }
 
 .prompt {

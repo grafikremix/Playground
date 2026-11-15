@@ -2,7 +2,7 @@
 
 Live at [grafikremix.github.io/Playground](https://grafikremix.github.io/Playground/).
 
-Eight interface experiments. Each one breaks a rule I usually defend. The fun is in the friction.
+Interface ideas that probably shouldn't exist. I built them anyway.
 
 1. **Viscous toggle** — a switch that has to slosh
 2. **Gravity checkboxes** — done work gets heavy
