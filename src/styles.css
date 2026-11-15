@@ -89,20 +89,8 @@ button, input, select { font: inherit; color: inherit; }
 .site {
   position: relative;
   z-index: 1;
-  padding: 18px var(--pad) calc(64px + env(safe-area-inset-bottom));
+  padding: 22px var(--pad) calc(64px + env(safe-area-inset-bottom));
   padding-right: max(16px, env(safe-area-inset-right));
-}
-
-.top {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: start;
-  gap: 10px 16px;
-  margin-bottom: 28px;
-}
-
-.top .eyebrow:last-child {
-  grid-column: 2;
 }
 
 .mark {
@@ -134,25 +122,8 @@ button, input, select { font: inherit; color: inherit; }
   pointer-events: none;
 }
 
-.eyebrow {
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--p-dim);
-  margin: 8px 0 0;
-}
-
-.eyebrow em {
-  font-style: italic;
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--p-soft);
-}
-
 .mast {
-  display: grid;
-  gap: 16px;
-  margin: 0 0 28px;
+  margin: 0 0 24px;
 }
 
 .mast h1 {
@@ -175,44 +146,13 @@ button, input, select { font: inherit; color: inherit; }
   text-wrap: pretty;
 }
 
-.prompt {
-  margin: 16px 0 0;
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  color: var(--p-dim);
-}
-
-.prompt b {
-  font-weight: 400;
-  color: var(--p);
-}
-
-.side-note {
-  font-size: 0.8rem;
-  color: var(--p-dim);
-  border-left: 1px solid var(--p-dim);
-  padding: 4px 0 4px 14px;
-  max-width: 36ch;
-}
-
-.side-note strong {
-  display: block;
-  font-family: var(--display);
-  color: var(--p);
-  font-weight: 400;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  font-size: 12px;
-  margin-bottom: 8px;
-}
-
 .grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: 18px;
   list-style: none;
   margin: 0;
-  padding: 10px 2px 0;
+  padding: 0 2px;
 }
 
 .tile {
@@ -461,20 +401,9 @@ button, input, select { font: inherit; color: inherit; }
 }
 
 @media (min-width: 768px) {
-  .site { padding-top: 22px; }
-  .top {
-    grid-template-columns: auto 1fr auto;
-  }
-  .top .eyebrow:last-child {
-    grid-column: auto;
-    text-align: right;
-  }
-  .mast {
-    grid-template-columns: minmax(0, 1.4fr) minmax(200px, 0.7fr);
-    gap: 18px 36px;
-    align-items: end;
-  }
+  .site { padding-top: 28px; }
   .mast h1 { font-size: clamp(40px, 6vw, 72px); }
+  .mast { margin: 0 0 28px; }
   .colophon {
     grid-template-columns: 1fr auto;
     margin-top: 64px;
