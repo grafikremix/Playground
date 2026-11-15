@@ -1,6 +1,6 @@
 # Playground
 
-[grafikremix.github.io/Playground](https://grafikremix.github.io/Playground/)
+Live at [grafikremix.github.io/Playground](https://grafikremix.github.io/Playground/).
 
 Eight interface experiments. Each one breaks a rule I usually defend. The fun is in the friction.
 
