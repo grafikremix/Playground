@@ -9,17 +9,49 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;')
 }
 
-function ideaMeta(spec) {
+function ideaChrome(spec) {
+  const id = `prompt-window-${spec.slug}`
   return `
-    <div class="idea-meta">
-      <span class="idea-id">Idea ${escapeHtml(spec.idea)}</span>
-      <time class="idea-date" datetime="${escapeHtml(spec.date)}">${escapeHtml(spec.date)}</time>
-      <details class="prompt-fold">
-        <summary>prompt</summary>
-        <pre class="prompt-text" data-prompt></pre>
-      </details>
+    <nav class="chrome">
+      <a class="back" href="${withBase('')}">← Back</a>
+      <span class="idea-hud">Idea ${escapeHtml(spec.idea)} · ${escapeHtml(spec.title)}</span>
+      <button class="prompt-open" type="button" aria-expanded="false" aria-controls="${id}">
+        ${escapeHtml(spec.title)}
+      </button>
+    </nav>
+    <div class="prompt-window" id="${id}" role="dialog" aria-labelledby="${id}-title" hidden>
+      <button class="prompt-close" type="button" aria-label="Close">×</button>
+      <h2 class="prompt-title" id="${id}-title">${escapeHtml(spec.title)}</h2>
+      <p class="prompt-blurb">${escapeHtml(spec.blurb)}</p>
+      <pre class="prompt-text" data-prompt></pre>
+      <div class="prompt-foot">
+        <span class="idea-id">Idea ${escapeHtml(spec.idea)}</span>
+        <time class="idea-date" datetime="${escapeHtml(spec.date)}">${escapeHtml(spec.date)}</time>
+      </div>
     </div>
   `
+}
+
+function bindPrompt(root) {
+  const open = root.querySelector('.prompt-open')
+  const win = root.querySelector('.prompt-window')
+  const close = root.querySelector('.prompt-close')
+  if (!open || !win || !close) return
+
+  const setOpen = (on) => {
+    win.hidden = !on
+    open.setAttribute('aria-expanded', String(on))
+    if (on) close.focus()
+    else open.focus()
+  }
+
+  open.addEventListener('click', () => setOpen(win.hidden))
+  close.addEventListener('click', () => setOpen(false))
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || win.hidden) return
+    e.preventDefault()
+    setOpen(false)
+  })
 }
 
 export function boot(slug, mount) {
@@ -49,10 +81,7 @@ export function boot(slug, mount) {
   app.innerHTML = full
     ? `
     <div class="site">
-      <nav class="chrome">
-        <a class="back" href="${withBase('')}">← Back</a>
-        ${ideaMeta(spec)}
-      </nav>
+      ${ideaChrome(spec)}
       <div class="stage-frame">
         <div data-stage></div>
       </div>
@@ -60,10 +89,7 @@ export function boot(slug, mount) {
   `
     : `
     <div class="site">
-      <nav class="chrome">
-        <a class="back" href="${withBase('')}">← Back</a>
-        ${ideaMeta(spec)}
-      </nav>
+      ${ideaChrome(spec)}
       <header class="specimen-head">
         <h1>${escapeHtml(spec.title)}</h1>
       </header>
@@ -76,6 +102,7 @@ export function boot(slug, mount) {
   const prompt = app.querySelector('[data-prompt]')
   if (prompt) prompt.textContent = spec.prompt ?? ''
   fillStudio(app)
+  bindPrompt(app)
   mount(app.querySelector('[data-stage]'), { preview: peek, still, peek })
 }
 
