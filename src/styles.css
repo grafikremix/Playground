@@ -274,6 +274,9 @@ button, input, select { font: inherit; color: inherit; }
   align-items: center;
   justify-content: flex-end;
   gap: 8px 14px;
+  width: max-content;
+  max-width: 100%;
+  pointer-events: none;
 }
 
 .idea-id,
@@ -326,6 +329,7 @@ button, input, select { font: inherit; color: inherit; }
   align-items: baseline;
   margin-bottom: 20px;
   font-size: 0.8rem;
+  pointer-events: none;
 }
 
 .back {
@@ -333,10 +337,12 @@ button, input, select { font: inherit; color: inherit; }
   letter-spacing: 0.1em;
   text-transform: uppercase;
   font-size: 11px;
-  min-height: 44px;
+  padding: 8px 0;
   display: inline-flex;
   align-items: center;
+  width: max-content;
   color: var(--p-soft);
+  pointer-events: auto;
 }
 
 .counter {
@@ -387,16 +393,28 @@ button, input, select { font: inherit; color: inherit; }
 
 .prompt-fold {
   margin: 0;
-  max-width: min(62ch, calc(100vw - 48px));
+  display: inline-block;
+  width: max-content;
+  max-width: min(62ch, calc(100vw - 24px));
+  pointer-events: none;
+}
+
+.prompt-fold:not([open]) {
+  max-width: none;
+  background: none;
+  border: 0;
+  padding: 0;
 }
 
 .prompt-fold summary {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  min-height: 44px;
+  padding: 8px 0;
   cursor: pointer;
   list-style: none;
+  width: max-content;
+  pointer-events: auto;
 }
 
 .prompt-fold summary::-webkit-details-marker,
@@ -406,6 +424,7 @@ button, input, select { font: inherit; color: inherit; }
 }
 
 .prompt-fold[open] {
+  pointer-events: auto;
   background: rgba(2, 5, 12, 0.9);
   border: 1px solid var(--rule);
   padding: 4px 12px 12px;
@@ -423,6 +442,13 @@ body.is-full {
 body.is-full .site {
   padding: 0;
   min-height: 100dvh;
+  pointer-events: none;
+}
+
+body.is-full .stage-frame,
+body.is-full .stage-frame [data-stage],
+body.is-full .stage-frame canvas {
+  pointer-events: auto;
 }
 
 body.is-full .chrome {
@@ -434,6 +460,7 @@ body.is-full .chrome {
   margin: 0;
   padding: 8px max(12px, env(safe-area-inset-right)) 8px max(12px, env(safe-area-inset-left));
   align-items: start;
+  pointer-events: none;
 }
 
 body.is-full .stage-frame {
