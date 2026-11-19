@@ -1,12 +1,10 @@
 import './styles.css'
-import { fillStudio, withBase, specimens } from './chrome.js'
+import { withBase, specimens } from './chrome.js'
 import { ditherToPhosphor } from './lib/dither.js'
 
 const HOLD = 260
 const reduced =
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
-
-fillStudio()
 
 const grid = document.getElementById('grid')
 grid.innerHTML = specimens

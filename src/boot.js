@@ -10,7 +10,6 @@ function escapeHtml(value) {
 }
 
 export function boot(slug, mount) {
-  fillStudio()
   const spec = specimenMeta(slug)
   const i = specimens.findIndex((s) => s.slug === slug)
   const still = new URLSearchParams(location.search).has('still')
@@ -48,18 +47,6 @@ export function boot(slug, mount) {
   prompt.textContent = spec.prompt ?? ''
   fillStudio(app)
   mount(app.querySelector('[data-stage]'), { preview: false, still })
-
-  if (specimens.length) {
-    const prev = specimens[(i - 1 + specimens.length) % specimens.length]
-    const next = specimens[(i + 1) % specimens.length]
-    const foot = document.createElement('footer')
-    foot.className = 'colophon'
-    foot.innerHTML = `
-      <a href="${withBase(`specimens/${prev.slug}.html`)}">${escapeHtml(`← ${prev.title}`)}</a>
-      <a href="${withBase(`specimens/${next.slug}.html`)}">${escapeHtml(`${next.title} →`)}</a>
-    `
-    app.querySelector('.site').appendChild(foot)
-  }
 }
 
 export { fillStudio, withBase, specimens }
