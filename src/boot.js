@@ -15,17 +15,17 @@ export function boot(slug, mount) {
   const still = new URLSearchParams(location.search).has('still')
   const app = document.getElementById('app')
   if (!spec || i < 0) {
-    document.title = 'Playground'
-    app.innerHTML = `<div class="site"><a class="back" href="${withBase('')}">← playground</a></div>`
+    document.title = 'Radley’s Sandbox'
+    app.innerHTML = `<div class="site"><a class="back" href="${withBase('')}">← sandbox</a></div>`
     return
   }
-  document.title = `${spec.title} — Playground`
+  document.title = `${spec.title} — Radley’s Sandbox`
   if (still) document.body.classList.add('is-still')
 
   app.innerHTML = `
     <div class="site">
       <nav class="chrome">
-        <a class="back" href="${withBase('')}">← playground</a>
+        <a class="back" href="${withBase('')}">← sandbox</a>
         <a class="mark" href="${withBase('')}" data-monogram data-print="gr">gr</a>
         <span class="counter">${escapeHtml(spec.n)} / ${String(specimens.length).padStart(2, '0')}</span>
       </nav>
