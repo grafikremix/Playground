@@ -73,7 +73,10 @@ async function main() {
     deviceScaleFactor: 2,
   })
 
+  const only = process.argv.slice(2).filter((a) => !a.startsWith('-'))
+
   for (const spec of specimens) {
+    if (only.length && !only.includes(spec.slug)) continue
     const dest = join(OUT, spec.slug)
     await mkdir(dest, { recursive: true })
     const href = `${url.replace(/\/$/, '')}/specimens/${spec.slug}.html?still=1`
