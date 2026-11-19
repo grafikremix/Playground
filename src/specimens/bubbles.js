@@ -45,6 +45,7 @@ let audio
 let master
 
 function unlockAudio() {
+  if (document.body.classList.contains('is-peek')) return
   const AC = window.AudioContext || window.webkitAudioContext
   if (!AC) return
   if (!audio) {
@@ -163,13 +164,14 @@ function playAnimal(name) {
   }
 }
 
-export function mount(stage, { still } = {}) {
+export function mount(stage, { still, peek } = {}) {
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d')
   stage.replaceChildren(canvas)
   stage.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;'
-  canvas.style.cssText =
-    'width:100%;height:100%;display:block;touch-action:none;cursor:grab;-webkit-user-select:none;user-select:none;'
+  canvas.style.cssText = peek
+    ? 'width:100%;height:100%;display:block;pointer-events:none;touch-action:none;'
+    : 'width:100%;height:100%;display:block;touch-action:none;cursor:grab;-webkit-user-select:none;user-select:none;'
 
   const frame = stage.closest('.stage-frame') || stage
   let w = 1
@@ -339,65 +341,67 @@ export function mount(stage, { still } = {}) {
     return { x: e.clientX - box.left, y: e.clientY - box.top }
   }
 
-  canvas.addEventListener('pointerdown', (e) => {
-    if (e.button) return
-    unlockAudio()
-    const p = local(e)
-    const b = hit(p.x, p.y)
-    if (!b || b.held != null) return
-    canvas.setPointerCapture(e.pointerId)
-    b.held = e.pointerId
-    pointers.set(e.pointerId, {
-      x: p.x,
-      y: p.y,
-      sx: p.x,
-      sy: p.y,
-      t: performance.now(),
-      bubble: b,
-      moved: false,
-    })
-  })
-
-  canvas.addEventListener('pointermove', (e) => {
-    const rec = pointers.get(e.pointerId)
-    if (!rec) return
-    const p = local(e)
-    const dx = p.x - rec.sx
-    const dy = p.y - rec.sy
-    if (!rec.moved && Math.hypot(dx, dy) > MOVE) rec.moved = true
-    if (rec.moved) {
-      const b = rec.bubble
-      const now = performance.now()
-      const dt = Math.max(0.016, (now - rec.t) / 1000)
-      rec.t = now
-      b.vx = (p.x - rec.x) / dt
-      b.vy = (p.y - rec.y) / dt
-      b.x = p.x
-      b.y = p.y
-      canvas.style.cursor = 'grabbing'
-    }
-    rec.x = p.x
-    rec.y = p.y
-  })
-
-  function release(e, doPop) {
-    const rec = pointers.get(e.pointerId)
-    if (!rec) return
-    pointers.delete(e.pointerId)
-    rec.bubble.held = null
-    canvas.style.cursor = 'grab'
-    if (doPop && !rec.moved) {
+  if (!peek) {
+    canvas.addEventListener('pointerdown', (e) => {
+      if (e.button) return
+      unlockAudio()
       const p = local(e)
-      if (Math.hypot(p.x - rec.sx, p.y - rec.sy) <= POP) pop(rec.bubble)
-    }
-  }
+      const b = hit(p.x, p.y)
+      if (!b || b.held != null) return
+      canvas.setPointerCapture(e.pointerId)
+      b.held = e.pointerId
+      pointers.set(e.pointerId, {
+        x: p.x,
+        y: p.y,
+        sx: p.x,
+        sy: p.y,
+        t: performance.now(),
+        bubble: b,
+        moved: false,
+      })
+    })
 
-  canvas.addEventListener('pointerup', (e) => release(e, true))
-  canvas.addEventListener('pointercancel', (e) => release(e, false))
-  canvas.addEventListener('contextmenu', (e) => e.preventDefault())
-  canvas.addEventListener('lostpointercapture', (e) => {
-    if (pointers.has(e.pointerId)) release(e, false)
-  })
+    canvas.addEventListener('pointermove', (e) => {
+      const rec = pointers.get(e.pointerId)
+      if (!rec) return
+      const p = local(e)
+      const dx = p.x - rec.sx
+      const dy = p.y - rec.sy
+      if (!rec.moved && Math.hypot(dx, dy) > MOVE) rec.moved = true
+      if (rec.moved) {
+        const b = rec.bubble
+        const now = performance.now()
+        const dt = Math.max(0.016, (now - rec.t) / 1000)
+        rec.t = now
+        b.vx = (p.x - rec.x) / dt
+        b.vy = (p.y - rec.y) / dt
+        b.x = p.x
+        b.y = p.y
+        canvas.style.cursor = 'grabbing'
+      }
+      rec.x = p.x
+      rec.y = p.y
+    })
+
+    function release(e, doPop) {
+      const rec = pointers.get(e.pointerId)
+      if (!rec) return
+      pointers.delete(e.pointerId)
+      rec.bubble.held = null
+      canvas.style.cursor = 'grab'
+      if (doPop && !rec.moved) {
+        const p = local(e)
+        if (Math.hypot(p.x - rec.sx, p.y - rec.sy) <= POP) pop(rec.bubble)
+      }
+    }
+
+    canvas.addEventListener('pointerup', (e) => release(e, true))
+    canvas.addEventListener('pointercancel', (e) => release(e, false))
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault())
+    canvas.addEventListener('lostpointercapture', (e) => {
+      if (pointers.has(e.pointerId)) release(e, false)
+    })
+  }
 
   function drawBubble(b, t) {
     const bob = reduced || still ? 0 : Math.sin(t * 0.0011 + b.phase) * 3.2

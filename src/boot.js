@@ -25,7 +25,9 @@ function ideaMeta(spec) {
 export function boot(slug, mount) {
   const spec = specimenMeta(slug)
   const i = specimens.findIndex((s) => s.slug === slug)
-  const still = new URLSearchParams(location.search).has('still')
+  const params = new URLSearchParams(location.search)
+  const still = params.has('still')
+  const peek = params.has('peek')
   const app = document.getElementById('app')
   if (!spec || i < 0) {
     document.title = 'Radley’s AI Playground'
@@ -34,8 +36,15 @@ export function boot(slug, mount) {
   }
   document.title = `${spec.title} — Radley’s AI Playground`
   if (still) document.body.classList.add('is-still')
-  const full = spec.full && !still
+  if (peek) document.body.classList.add('is-peek')
+  const full = spec.full && !still && !peek
   if (full) document.body.classList.add('is-full')
+
+  if (peek) {
+    app.innerHTML = `<div class="stage-frame"><div data-stage></div></div>`
+    mount(app.querySelector('[data-stage]'), { preview: true, still: false, peek: true })
+    return
+  }
 
   app.innerHTML = full
     ? `
@@ -65,9 +74,9 @@ export function boot(slug, mount) {
     </div>
   `
   const prompt = app.querySelector('[data-prompt]')
-  prompt.textContent = spec.prompt ?? ''
+  if (prompt) prompt.textContent = spec.prompt ?? ''
   fillStudio(app)
-  mount(app.querySelector('[data-stage]'), { preview: false, still })
+  mount(app.querySelector('[data-stage]'), { preview: peek, still, peek })
 }
 
 export { fillStudio, withBase, specimens }
