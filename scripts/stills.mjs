@@ -59,6 +59,11 @@ async function treat(buf, crop) {
 }
 
 async function main() {
+  if (!specimens.length) {
+    console.log('no experiments yet')
+    return
+  }
+
   const browser = await chromium.launch({
     channel: 'chrome',
     args: ['--hide-scrollbars'],
@@ -75,7 +80,7 @@ async function main() {
     console.log('still', spec.slug, href)
     await page.goto(href, { waitUntil: 'networkidle' })
     await page.evaluate(() => document.fonts.ready)
-    await page.waitForTimeout(spec.slug === 'shattering' ? 180 : 700)
+    await page.waitForTimeout(spec.stillWait ?? 700)
     const target = page.locator('.stage-frame')
     await target.waitFor({ state: 'visible' })
     const buf = await target.screenshot({ type: 'png' })

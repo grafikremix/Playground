@@ -7,6 +7,11 @@ export function boot(slug, mount) {
   const i = specimens.findIndex((s) => s.slug === slug)
   const still = new URLSearchParams(location.search).has('still')
   const app = document.getElementById('app')
+  if (!spec || i < 0) {
+    document.title = 'Playground'
+    app.innerHTML = `<div class="site"><a class="back" href="${withBase('')}">← playground</a></div>`
+    return
+  }
   document.title = `${spec.title} — Playground`
   if (still) document.body.classList.add('is-still')
 
@@ -34,15 +39,17 @@ export function boot(slug, mount) {
   fillStudio(app)
   mount(app.querySelector('[data-stage]'), { preview: false, still })
 
-  const prev = specimens[(i - 1 + specimens.length) % specimens.length]
-  const next = specimens[(i + 1) % specimens.length]
-  const foot = document.createElement('footer')
-  foot.className = 'colophon'
-  foot.innerHTML = `
-    <a href="${withBase(`specimens/${prev.slug}.html`)}">← ${prev.title}</a>
-    <a href="${withBase(`specimens/${next.slug}.html`)}">${next.title} →</a>
-  `
-  app.querySelector('.site').appendChild(foot)
+  if (specimens.length) {
+    const prev = specimens[(i - 1 + specimens.length) % specimens.length]
+    const next = specimens[(i + 1) % specimens.length]
+    const foot = document.createElement('footer')
+    foot.className = 'colophon'
+    foot.innerHTML = `
+      <a href="${withBase(`specimens/${prev.slug}.html`)}">← ${prev.title}</a>
+      <a href="${withBase(`specimens/${next.slug}.html`)}">${next.title} →</a>
+    `
+    app.querySelector('.site').appendChild(foot)
+  }
 }
 
 export { fillStudio, withBase, specimens }
