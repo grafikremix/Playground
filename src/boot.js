@@ -14,7 +14,7 @@ function ideaChrome(spec) {
   return `
     <nav class="chrome">
       <a class="back" href="${withBase('')}">← Back</a>
-      <span class="idea-hud">Idea ${escapeHtml(spec.idea)} · ${escapeHtml(spec.title)}</span>
+      <span class="idea-hud">${escapeHtml(spec.title)}</span>
       <button class="prompt-open" type="button" aria-expanded="false" aria-controls="${id}">
         View Prompt
       </button>
@@ -24,7 +24,10 @@ function ideaChrome(spec) {
       <h2 class="prompt-title" id="${id}-title">${escapeHtml(spec.title)}</h2>
       <p class="prompt-blurb">${escapeHtml(spec.blurb)}</p>
       <pre class="prompt-text" data-prompt></pre>
-      <time class="idea-date" datetime="${escapeHtml(spec.date)}">${escapeHtml(spec.date)}</time>
+      <div class="prompt-foot">
+        <span class="idea-id">Idea ${escapeHtml(spec.idea)}</span>
+        <time class="idea-date" datetime="${escapeHtml(spec.date)}">${escapeHtml(spec.date)}</time>
+      </div>
     </div>
   `
 }
