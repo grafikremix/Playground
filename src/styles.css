@@ -129,7 +129,7 @@ button, input, select { font: inherit; color: inherit; }
 .mast h1 {
   font-family: var(--display);
   font-weight: 700;
-  font-size: clamp(20px, 6.3vw, 56px);
+  font-size: clamp(17px, 5.6vw, 48px);
   line-height: 1.05;
   letter-spacing: 0.02em;
   margin: 0;
@@ -368,6 +368,74 @@ button, input, select { font: inherit; color: inherit; }
   box-shadow: inset 0 0 80px rgba(183, 236, 255, 0.06);
 }
 
+.stage-frame [data-stage] {
+  position: absolute;
+  inset: 0;
+}
+
+.prompt-fold {
+  margin: 0;
+  max-width: min(62ch, calc(100vw - 48px));
+}
+
+.prompt-fold summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.prompt-fold summary::-webkit-details-marker,
+.prompt-fold summary::marker {
+  display: none;
+  content: '';
+}
+
+.prompt-fold[open] {
+  background: rgba(2, 5, 12, 0.9);
+  border: 1px solid var(--rule);
+  padding: 4px 12px 12px;
+  box-shadow: inset 0 0 24px rgba(183, 236, 255, 0.04);
+}
+
+.prompt-fold .prompt-mark { margin: 0; }
+.prompt-fold .prompt-text { margin-top: 8px; max-height: 40vh; overflow: auto; }
+
+body.is-full {
+  overflow: hidden;
+  touch-action: none;
+}
+
+body.is-full .site {
+  padding: 0;
+  min-height: 100dvh;
+}
+
+body.is-full .chrome {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 90;
+  margin: 0;
+  padding: 8px max(12px, env(safe-area-inset-right)) 8px max(12px, env(safe-area-inset-left));
+  align-items: start;
+}
+
+body.is-full .stage-frame {
+  position: fixed;
+  inset: 0;
+  min-height: 100dvh;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--bg);
+}
+
 .hint {
   position: absolute;
   left: 12px;
@@ -380,7 +448,7 @@ button, input, select { font: inherit; color: inherit; }
 
 @media (min-width: 768px) {
   .site { padding-top: 28px; }
-  .mast h1 { font-size: clamp(28px, 4.2vw, 56px); }
+  .mast h1 { font-size: clamp(22px, 3.5vw, 48px); }
   .mast { margin: 0 0 28px; }
   .specimen-head { gap: 16px; }
   .stage-frame { padding: 28px 18px 40px; }
@@ -417,6 +485,7 @@ button, input, select { font: inherit; color: inherit; }
 
 body.is-still .chrome,
 body.is-still .specimen-head,
+body.is-still .prompt-fold,
 body.is-still .hint {
   display: none !important;
 }

@@ -15,14 +15,34 @@ export function boot(slug, mount) {
   const still = new URLSearchParams(location.search).has('still')
   const app = document.getElementById('app')
   if (!spec || i < 0) {
-    document.title = 'Radley’s Sandbox'
+    document.title = 'Radley’s AI Sandbox'
     app.innerHTML = `<div class="site"><a class="back" href="${withBase('')}">← sandbox</a></div>`
     return
   }
-  document.title = `${spec.title} — Radley’s Sandbox`
+  document.title = `${spec.title} — Radley’s AI Sandbox`
   if (still) document.body.classList.add('is-still')
+  const full = spec.full && !still
+  if (full) document.body.classList.add('is-full')
 
-  app.innerHTML = `
+  app.innerHTML = full
+    ? `
+    <div class="site">
+      <nav class="chrome">
+        <a class="back" href="${withBase('')}">← sandbox</a>
+        <details class="prompt-fold">
+          <summary>
+            <span class="prompt-mark">prompt</span>
+            <time class="idea-date" datetime="${escapeHtml(spec.date)}">${escapeHtml(spec.date)}</time>
+          </summary>
+          <pre class="prompt-text" data-prompt></pre>
+        </details>
+      </nav>
+      <div class="stage-frame">
+        <div data-stage></div>
+      </div>
+    </div>
+  `
+    : `
     <div class="site">
       <nav class="chrome">
         <a class="back" href="${withBase('')}">← sandbox</a>
