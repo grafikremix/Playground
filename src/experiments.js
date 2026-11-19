@@ -6,13 +6,11 @@
 // {
 //   slug: 'example',
 //   title: 'Example',
-//   rule: '',
 //   blurb: '',
-//   line: '',
+//   prompt: '', // exact wording — casing, line breaks, typos kept
+//   date: '2026-11-19', // ISO, YYYY-MM-DD
 //   hint: '',
-//   date: '',
 //   crop: { x: 0.5, y: 0.5, z: 1 },
-//   note: '',
 // }
 
 export const experiments = []

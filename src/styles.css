@@ -269,16 +269,40 @@ button, input, select { font: inherit; color: inherit; }
   text-shadow: 0 0 10px rgba(183, 236, 255, 0.45);
 }
 
-.rule-stamp {
-  display: inline-block;
-  border: 1px solid var(--p-dim);
-  color: var(--p);
+.idea-date {
   font-family: var(--display);
   font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  padding: 5px 8px 4px;
-  margin: 0 0 10px;
+  letter-spacing: 0.14em;
+  color: var(--p-dim);
+  line-height: 1;
+}
+
+.prompt {
+  margin: 0;
+  max-width: 62ch;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--rule);
+  background: var(--bg-2);
+  box-shadow: inset 0 0 24px rgba(183, 236, 255, 0.04);
+}
+
+.prompt-mark {
+  font-family: var(--display);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  color: var(--p-dim);
+  margin: 0 0 8px;
+  line-height: 1;
+}
+
+.prompt-text {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--p-soft);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .colophon {
@@ -347,21 +371,6 @@ button, input, select { font: inherit; color: inherit; }
   max-width: 14ch;
 }
 
-.studio-note {
-  font-size: 0.85rem;
-  color: var(--p-soft);
-  max-width: 42ch;
-}
-
-.studio-note time {
-  display: block;
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--p-dim);
-  margin-bottom: 8px;
-}
-
 .stage-frame {
   background: var(--bg-2);
   border: 1px solid var(--p-dim);
@@ -397,11 +406,7 @@ button, input, select { font: inherit; color: inherit; }
     grid-template-columns: 1fr auto;
     margin-top: 64px;
   }
-  .specimen-head {
-    grid-template-columns: minmax(0, 1.3fr) minmax(200px, 0.7fr);
-    gap: 20px 48px;
-  }
-  .studio-note { margin-top: 12px; }
+  .specimen-head { gap: 16px; }
   .stage-frame { padding: 28px 18px 40px; }
 }
 

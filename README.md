@@ -14,4 +14,4 @@ npm run stills
 
 Or `PLAYGROUND_URL=http://127.0.0.1:4173 npm run stills` against a preview build. Output lands in `public/experiments/<slug>/still.{avif,webp,jpg}`.
 
-Personal name, city, and contact live in `src/studio.js`. Ideas live in `src/experiments.js`. To add one: an entry there, `src/specimens/<slug>.js`, `src/pages/<slug>.js`, `specimens/<slug>.html`, then `npm run stills`.
+Personal name, city, and contact live in `src/studio.js`. Ideas live in `src/experiments.js`. Each entry needs `prompt` (the exact wording, unchanged) and `date` (ISO, `YYYY-MM-DD`). To add one: an entry there, `src/specimens/<slug>.js`, `src/pages/<slug>.js`, `specimens/<slug>.html`, then `npm run stills`.
