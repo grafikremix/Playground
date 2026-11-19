@@ -2,7 +2,7 @@
 
 Live at [grafikremix.github.io/Playground](https://grafikremix.github.io/Playground/).
 
-Interface ideas that probably shouldn't exist. I built them anyway.
+A playground of random ideas. One prompt per idea, no do-overs.
 
 The index is a grid of stills. Dithered phosphor until you hover or hold; colour blooms from the press. Tap opens the experiment. Hold does not.
 
