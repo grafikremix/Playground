@@ -9,17 +9,30 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;')
 }
 
+function ideaMeta(spec) {
+  return `
+    <div class="idea-meta">
+      <span class="idea-id">Idea ${escapeHtml(spec.idea)}</span>
+      <time class="idea-date" datetime="${escapeHtml(spec.date)}">${escapeHtml(spec.date)}</time>
+      <details class="prompt-fold">
+        <summary>prompt</summary>
+        <pre class="prompt-text" data-prompt></pre>
+      </details>
+    </div>
+  `
+}
+
 export function boot(slug, mount) {
   const spec = specimenMeta(slug)
   const i = specimens.findIndex((s) => s.slug === slug)
   const still = new URLSearchParams(location.search).has('still')
   const app = document.getElementById('app')
   if (!spec || i < 0) {
-    document.title = 'Radley’s AI Sandbox'
-    app.innerHTML = `<div class="site"><a class="back" href="${withBase('')}">← sandbox</a></div>`
+    document.title = 'Radley’s AI Playground'
+    app.innerHTML = `<div class="site"><a class="back" href="${withBase('')}">← Back</a></div>`
     return
   }
-  document.title = `${spec.title} — Radley’s AI Sandbox`
+  document.title = `${spec.title} — Radley’s AI Playground`
   if (still) document.body.classList.add('is-still')
   const full = spec.full && !still
   if (full) document.body.classList.add('is-full')
@@ -28,14 +41,8 @@ export function boot(slug, mount) {
     ? `
     <div class="site">
       <nav class="chrome">
-        <a class="back" href="${withBase('')}">← sandbox</a>
-        <details class="prompt-fold">
-          <summary>
-            <span class="prompt-mark">prompt</span>
-            <time class="idea-date" datetime="${escapeHtml(spec.date)}">${escapeHtml(spec.date)}</time>
-          </summary>
-          <pre class="prompt-text" data-prompt></pre>
-        </details>
+        <a class="back" href="${withBase('')}">← Back</a>
+        ${ideaMeta(spec)}
       </nav>
       <div class="stage-frame">
         <div data-stage></div>
@@ -45,17 +52,11 @@ export function boot(slug, mount) {
     : `
     <div class="site">
       <nav class="chrome">
-        <a class="back" href="${withBase('')}">← sandbox</a>
-        <a class="mark" href="${withBase('')}" data-monogram data-print="gr">gr</a>
-        <span class="counter">${escapeHtml(spec.n)} / ${String(specimens.length).padStart(2, '0')}</span>
+        <a class="back" href="${withBase('')}">← Back</a>
+        ${ideaMeta(spec)}
       </nav>
       <header class="specimen-head">
         <h1>${escapeHtml(spec.title)}</h1>
-        <time class="idea-date" datetime="${escapeHtml(spec.date)}">${escapeHtml(spec.date)}</time>
-        <figure class="prompt">
-          <figcaption class="prompt-mark">prompt</figcaption>
-          <pre class="prompt-text" data-prompt></pre>
-        </figure>
       </header>
       <div class="stage-frame">
         <div data-stage></div>
