@@ -6,8 +6,15 @@ const MOVE = 14
 const reduced =
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
+function byNewest(a, b) {
+  const date = String(b.date || '').localeCompare(String(a.date || ''))
+  if (date) return date
+  return (b.idea ?? 0) - (a.idea ?? 0)
+}
+
 const grid = document.getElementById('grid')
-grid.innerHTML = specimens
+grid.innerHTML = [...specimens]
+  .sort(byNewest)
   .map((s) => {
     const src = (ext) => withBase(`experiments/${s.slug}/still.${ext}`)
     return `
