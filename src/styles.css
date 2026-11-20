@@ -491,7 +491,8 @@ body.is-full .site {
 
 body.is-full .stage-frame,
 body.is-full .stage-frame [data-stage],
-body.is-full .stage-frame canvas {
+body.is-full .stage-frame canvas,
+body.is-full .refresh {
   pointer-events: auto;
 }
 
@@ -517,6 +518,31 @@ body.is-full .stage-frame {
   border-radius: 0;
   box-shadow: none;
   background: var(--bg);
+}
+
+.refresh {
+  position: absolute;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  z-index: 92;
+  appearance: none;
+  margin: 0;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid var(--p-dim);
+  background: rgba(2, 5, 12, 0.78);
+  color: var(--p-soft);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.refresh:focus-visible {
+  outline: 1px solid var(--p);
+  outline-offset: 2px;
 }
 
 .hint {
@@ -565,6 +591,7 @@ body.is-still .specimen-head,
 body.is-still .idea-hud,
 body.is-still .prompt-window,
 body.is-still .prompt-open,
+body.is-still .refresh,
 body.is-still .hint {
   display: none !important;
 }

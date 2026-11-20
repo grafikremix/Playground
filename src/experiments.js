@@ -38,6 +38,18 @@ export const experiments = [
     stillWait: 720,
     crop: { x: 0.52, y: 0.44, z: 1.02 },
   },
+  {
+    slug: 'lite-brite',
+    title: 'lite brite',
+    blurb: 'Drag a streak of colour. It fades.',
+    prompt:
+      'Create an interactive canvas similar to an old school Lite Brite. The canvas will be filled with a grid of circles perfectly aligned horizontally and vertically. On every page load the circles will randomly change size and randomly change color, but always be uniform and equally spaced. The canvas will be dim by default, but as the user drags their finger or hovers over with their mouse the canvas circles will light up momentarily flashing their intended color then fade out. Additionally when the flash happens there will be a small haptic vibration to couple with the temporary flash. The intended interaction is that the user drags their finger or hovers over their mouse across the canvas and streaks of light follow the finger/mouse as it travels around the canvas coupled with tiny haptic vibrations for each time a circle is interacted with. Each light when lit should fade to dim within 1 second. Have a refresh button on the bottom right of the page that will refresh the page and load new sized and colored circles on the canvas.',
+    date: '2026-11-19',
+    hint: '',
+    full: true,
+    stillWait: 360,
+    crop: { x: 0.5, y: 0.5, z: 1.02 },
+  },
 ]
 
 export const specimens = experiments.map((e, i) => ({
