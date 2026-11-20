@@ -492,7 +492,8 @@ body.is-full .site {
 body.is-full .stage-frame,
 body.is-full .stage-frame [data-stage],
 body.is-full .stage-frame canvas,
-body.is-full .refresh {
+body.is-full .refresh,
+body.is-full .start {
   pointer-events: auto;
 }
 
@@ -540,9 +541,55 @@ body.is-full .stage-frame {
   pointer-events: auto;
 }
 
-.refresh:focus-visible {
+.refresh:focus-visible,
+.start:focus-visible {
   outline: 1px solid var(--p);
   outline-offset: 2px;
+}
+
+.start {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  transform: translate(-50%, -50%);
+  z-index: 92;
+  appearance: none;
+  margin: 0;
+  min-height: 44px;
+  min-width: 132px;
+  padding: 12px 22px;
+  border: 1px solid var(--p);
+  background: rgba(2, 5, 12, 0.82);
+  color: var(--p-hi);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 0 18px rgba(183, 236, 255, 0.18);
+}
+
+.start[hidden] {
+  display: none !important;
+}
+
+.timer {
+  position: absolute;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  z-index: 91;
+  margin: 0;
+  padding: 8px 2px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--p);
+  pointer-events: none;
+  text-shadow: 0 0 10px rgba(183, 236, 255, 0.35);
 }
 
 .hint {
@@ -592,6 +639,8 @@ body.is-still .idea-hud,
 body.is-still .prompt-window,
 body.is-still .prompt-open,
 body.is-still .refresh,
+body.is-still .start,
+body.is-still .timer,
 body.is-still .hint {
   display: none !important;
 }

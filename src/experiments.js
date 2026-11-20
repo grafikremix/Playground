@@ -50,6 +50,18 @@ export const experiments = [
     stillWait: 360,
     crop: { x: 0.5, y: 0.5, z: 1.02 },
   },
+  {
+    slug: 'runner',
+    title: 'runner',
+    blurb: 'Walk right. Tap to jump.',
+    prompt:
+      'Thinking of a simple side scroller game similar to Mario bros. The level design has two horizontal planes: a floor where our hero walks (this is the default on how our hero starts) and a second level where our here needs to jump to reach. There is no extra horizontal planes, just the two levels described. Our hero will walk by default to progress the horizontal scroll walking towards the right side of the screen. Our hero will always be positioned about 30% left of the screen in order to visibly see and react that comes on screen.  The only action the hero can do is walk, which they do by default without a way for the player to stop the walking, and two, the ability to jump which can be done by tapping anywhere on the screen. The intention for the hero to jump is to either avoid an enemy or two jump to the next vertical plane. The environment would consist of a floor, the first vertical plane and random blocks that look like clouds for the second vertical plane for our her to jump onto. Cloud blocks need to be spaced out and can only have two clouds beside each other max. The background and in the distance show moving stars at different horizons and depths to show that the hero is moving in physical space. The enemies: One enemy would walk towards our hero on the floor and one enemy would fly on the second vertical plane (cloud boxes). The only way for our hero to survive is to jump across the enemy or if our hero is on the second plane and an enemy is walking on the floor. Enemies will come one at a time on screen. 5% of the time you might see two enemies. Put a count down timer on the bottom right of the screen for 1 minute. When 1 minute is up a swarm of enemies come which gives only an 80% for our hero to survive. Obviously if the enemy touches our hero they die and the game restarts. When the game loads and restarts after each death, have a start button to activate the game.',
+    date: '2026-11-20',
+    hint: '',
+    full: true,
+    stillWait: 420,
+    crop: { x: 0.36, y: 0.58, z: 1.08 },
+  },
 ]
 
 export const specimens = experiments.map((e, i) => ({
