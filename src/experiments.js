@@ -135,6 +135,19 @@ export const experiments = [
     stillWait: 560,
     crop: { x: 0.5, y: 0.52, z: 1.06 },
   },
+  {
+    slug: 'tree',
+    title: 'tree',
+    blurb: 'Pull a limb. Leaves don’t grow back.',
+    prompt:
+      'A tree that is planted firmly into the ground and is tall and leafy. Lots of branches and lots of leaves. On each load the type of tree changes. Could be a leafy green tree in summer, a golden autumn tree or a tall pine tree. Every tree should be vertically tall to allow for the interaction I will describe. The user can bend the tree by pulling a branch or the middle of the tree. Depending where the pull happens physics of a tree, it’s body and branches need to be taken to account. For example if you try to pull on the bottom by the trunk, the user will have a difficult time. If you pull on a limb then the user will have more success pulling the tree left right or up. If you pull on a branch or twig you might end up braking the branch or twig because of it delicate nature. When pulling and releasing ensure there’s an elastic nature to the branches and twigs but not so unrealistic that it feels like a rubber band. There should be some resistance. As the user pulls on parts of the tree the leaves or needles will start to fall. Depending on how far the pull and the velocity of the swing will determine how many leaves shake off the tree and fall to the ground. The harder the swing the more leaves or needles fall. Keep in consideration the season as well. A tree in spring or summer will have leaves that make it harder to fall where the opposite is true of a tree in autumn or winter. Pine trees could be a bit more playful where needles shoot out everywhere. Leaves, branches and twigs that leave the tree should never grow back thus the player having the potential to make the tree completely bare. Have a reset button which would load up a new tree. Wait add snow if it’s winter, wind if autumn, rain for spring, and summer add the sun shining. Add this to the prompt',
+    author: 'Radley',
+    date: '2026-11-21',
+    hint: '',
+    full: true,
+    stillWait: 640,
+    crop: { x: 0.5, y: 0.4, z: 1.08 },
+  },
 ]
 
 export const specimens = experiments.map((e, i) => ({
