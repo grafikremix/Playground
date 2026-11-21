@@ -1,6 +1,6 @@
 import './styles.css'
 import { fillStudio, withBase, specimenMeta, specimens } from './chrome.js'
-import { unlock, soundOn, setSoundOn } from './lib/audio.js'
+import { unlock, soundOn, setSoundOn, tone } from './lib/audio.js'
 import { watchBuild } from './lib/fresh.js'
 
 watchBuild()
@@ -20,6 +20,8 @@ function soundLabel(on) {
 function ideaChrome(spec) {
   const id = `prompt-window-${spec.slug}`
   const on = soundOn()
+  const edit = spec.edit && spec.edit.text
+  const author = spec.author || 'Radley'
   return `
     <nav class="chrome">
       <a class="back" href="${withBase('')}">← Back</a>
@@ -39,19 +41,33 @@ function ideaChrome(spec) {
       <div class="prompt-scroll">
         <h2 class="prompt-title" id="${id}-title">${escapeHtml(spec.title)}</h2>
         <p class="prompt-blurb">${escapeHtml(spec.blurb)}</p>
-        <pre class="prompt-text" data-prompt></pre>
         ${
-          spec.edit
-            ? `<section class="prompt-edit" aria-labelledby="${id}-edit">
-          <h3 class="prompt-edit-title" id="${id}-edit">Dad edit</h3>
-          <pre class="prompt-text" data-prompt-edit></pre>
-        </section>`
+          edit
+            ? `<button
+          class="prompt-switch"
+          type="button"
+          role="switch"
+          aria-checked="false"
+          aria-label="Original / Edit"
+          data-prompt-switch
+        >
+          <span data-side="original">Original</span>
+          <span class="prompt-switch-rule" aria-hidden="true">/</span>
+          <span data-side="edit">Edit</span>
+        </button>`
             : ''
         }
-      </div>
-      <div class="prompt-foot">
-        <span class="idea-id">Idea ${escapeHtml(spec.idea)}</span>
-        <time class="idea-date" datetime="${escapeHtml(spec.date)}">${escapeHtml(spec.date)}</time>
+        <pre class="prompt-text" data-prompt></pre>
+        <div class="prompt-meta">
+          <p>Idea ${escapeHtml(spec.idea)}</p>
+          <p>Author ${escapeHtml(author)}</p>
+          <p>Date <time datetime="${escapeHtml(spec.date)}">${escapeHtml(spec.date)}</time></p>
+          ${
+            edit
+              ? `<p>Edited <time datetime="${escapeHtml(spec.edit.date)}">${escapeHtml(spec.edit.date)}</time> by ${escapeHtml(spec.edit.author || 'Radley')}</p>`
+              : ''
+          }
+        </div>
       </div>
     </div>
   `
@@ -70,6 +86,30 @@ function focusables(win) {
   return [...win.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')].filter(
     (el) => !el.hasAttribute('disabled') && !el.getAttribute('aria-hidden'),
   )
+}
+
+function sfxSwitch() {
+  unlock()
+  tone({ type: 'sine', freq: 980, duration: 0.045, peak: 0.045 })
+}
+
+function bindPromptView(root, spec) {
+  const pre = root.querySelector('[data-prompt]')
+  const sw = root.querySelector('[data-prompt-switch]')
+  if (!pre) return
+  const paint = (editOn) => {
+    const useEdit = editOn && spec.edit?.text
+    pre.textContent = useEdit ? spec.edit.text : (spec.prompt ?? '')
+    if (!sw) return
+    sw.setAttribute('aria-checked', String(!!useEdit))
+    sw.classList.toggle('is-edit', !!useEdit)
+  }
+  paint(false)
+  if (!sw) return
+  sw.addEventListener('click', () => {
+    sfxSwitch()
+    paint(sw.getAttribute('aria-checked') !== 'true')
+  })
 }
 
 function bindPrompt(root) {
@@ -197,12 +237,9 @@ export function boot(slug, mount) {
       ${stageMarkup(spec.hint)}
     </div>
   `
-  const prompt = app.querySelector('[data-prompt]')
-  if (prompt) prompt.textContent = spec.prompt ?? ''
-  const promptEdit = app.querySelector('[data-prompt-edit]')
-  if (promptEdit) promptEdit.textContent = spec.edit ?? ''
   fillStudio(app)
   bindPrompt(app)
+  bindPromptView(app, spec)
   bindSound(app)
   if (!still) bindStart(app)
   mount(app.querySelector('[data-stage]'), { preview: peek, still, peek })
