@@ -166,7 +166,7 @@ export function mount(stage, { still, peek } = {}) {
       thick,
       role,
       k,
-      damp: Math.sqrt(k) * 0.42,
+      damp: Math.sqrt(k) * 0.28,
       brk,
       alive: true,
       x: 0,
@@ -213,8 +213,8 @@ export function mount(stage, { still, peek } = {}) {
 
   function growBranch(parent, depth, maxD, rest, lenN, thick) {
     const role = depth === 1 ? 'limb' : depth === 2 ? 'branch' : 'twig'
-    const k = depth === 1 ? 16 : depth === 2 ? 9 : Math.max(4.4, 6.2 - depth * 0.35)
-    const brk = depth === 1 ? 6.5 : depth === 2 ? 1.35 : 0.82
+    const k = depth === 1 ? 78 : depth === 2 ? 62 : Math.max(42, 58 - depth * 4)
+    const brk = depth === 1 ? 8.5 : depth === 2 ? 2.4 : 1.05
     const s = addSeg(parent, rest, lenN, Math.max(1.05, thick), role, k, brk)
     sprinkle(s, leafN(depth))
     if (depth >= maxD) return s
@@ -238,7 +238,7 @@ export function mount(stage, { still, peek } = {}) {
     let node = null
     for (let i = 0; i < trunkN; i++) {
       const thick = Math.max(3.8, 10.4 - i * 1.25)
-      const k = 96 - i * 8
+      const k = 150 - i * 8
       node = addSeg(node, i === 0 ? -Math.PI / 2 : (Math.random() - 0.5) * 0.04, tLen, thick, 'trunk', k, 99)
     }
     for (let i = 1; i < trunkN; i++) {
@@ -417,43 +417,74 @@ export function mount(stage, { still, peek } = {}) {
     }
   }
 
+  function capOf(s) {
+    if (s.role === 'trunk') return 0.34
+    if (s.role === 'limb') return 1.28
+    if (s.role === 'branch') return 1.55
+    return 1.85
+  }
+
+  function heldSet() {
+    const held = new Set()
+    for (const g of grabs.values()) if (g.s && g.s.alive) held.add(g.s)
+    return held
+  }
+
   function nearest(px, py) {
     let best = null
-    let bd = 52
+    let bestScore = Infinity
     for (const s of segs) {
       if (!s.alive) continue
       const hit = distSeg(px, py, s.x, s.y, s.tx, s.ty)
-      const pad = Math.max(30, s.thick * 2.4)
-      if (hit.d < bd && hit.d < pad + 22) {
-        bd = hit.d
-        best = { s, t: hit.t }
+      let d = hit.d
+      for (const leaf of s.leaves) {
+        if (!leaf.on) continue
+        const lp = leafWorld(s, leaf)
+        const ld = Math.hypot(px - lp.x, py - lp.y) - leaf.size * 1.8
+        if (ld < d) d = Math.max(0, ld)
+      }
+      const pad = s.role === 'trunk' ? 64 : s.role === 'limb' ? 120 : s.role === 'branch' ? 104 : 88
+      if (d > pad) continue
+      const prefer = s.role === 'limb' ? 26 : s.role === 'branch' ? 14 : s.role === 'trunk' ? 10 : 0
+      const onWood = hit.d < Math.max(16, s.thick * 2.2) ? 48 : 0
+      const score = d - prefer - onWood
+      if (score < bestScore) {
+        bestScore = score
+        best = { s, t: Math.max(0.22, hit.t) }
       }
     }
     return best
   }
 
-  function pull(s, t, px, py, dt) {
-    const gx = s.x + (s.tx - s.x) * t
-    const gy = s.y + (s.ty - s.y) * t
-    let dx = px - gx
-    let dy = py - gy
-    const max = s.role === 'trunk' ? 16 : s.role === 'twig' ? 64 : s.role === 'branch' ? 48 : 40
-    const d = Math.hypot(dx, dy) || 1
-    if (d > max) {
-      dx = (dx / d) * max
-      dy = (dy / d) * max
-    }
-    const armx = gx - s.x
-    const army = gy - s.y
-    const tau = (armx * dy - army * dx) / (s.len * s.len + 18)
-    const gain = s.role === 'trunk' ? 5.5 : s.role === 'limb' ? 26 : s.role === 'branch' ? 32 : 38
-    s.angVel += tau * gain * dt * 60
+  function pull(s, along, px, py, dt) {
+    const parentWA = s.p >= 0 ? segs[s.p].wa : 0
+    let want = Math.atan2(py - s.y, px - s.x) - parentWA
+    while (want - s.angle > Math.PI) want -= Math.PI * 2
+    while (s.angle - want > Math.PI) want += Math.PI * 2
+    const cap = capOf(s)
+    const target = s.rest + Math.max(-cap, Math.min(cap, want - s.rest))
+    const err = target - s.angle
+    const follow = s.role === 'trunk' ? 14 : 22
+    const alpha = 1 - Math.exp(-follow * dt)
+    s.angle += err * alpha
+    s.angVel = err * follow
     if (s.p >= 0) {
       const p = segs[s.p]
-      p.angVel += tau * gain * 0.18 * dt * 60
-      if (p.p >= 0) segs[p.p].angVel += tau * gain * 0.06 * dt * 60
+      p.angVel += err * (p.role === 'trunk' ? 0.4 : 0.9)
+      if (p.p >= 0) segs[p.p].angVel += err * 0.22
+      for (const ki of p.kids) {
+        if (ki === s.i) continue
+        const sib = segs[ki]
+        if (sib?.alive) sib.angVel += err * 0.55
+      }
     }
-    return Math.min(1, d / 70)
+    for (const ki of s.kids) {
+      const c = segs[ki]
+      if (c?.alive) c.angVel += err * 0.7
+    }
+    const gx = s.x + (s.tx - s.x) * along
+    const gy = s.y + (s.ty - s.y) * along
+    return Math.min(1, Math.hypot(px - gx, py - gy) / 90)
   }
 
   function stepTree(dt) {
@@ -461,22 +492,24 @@ export function mount(stage, { still, peek } = {}) {
       gust = Math.sin(t * 0.55) * Math.sin(t * 1.15) * 0.55
     } else gust = gust * 0.9
 
+    const held = heldSet()
     for (const s of segs) {
       if (!s.alive) continue
-      let torque = -s.k * (s.angle - s.rest) - s.damp * s.angVel
-      if (pal.weather === 'wind' && s.role !== 'trunk') torque += gust * (s.role === 'twig' ? 2.4 : 1.1)
-      s.angVel += torque * dt
-      s.angle += s.angVel * dt
-      const cap = s.role === 'trunk' ? 0.16 : s.role === 'limb' ? 0.85 : s.role === 'branch' ? 1.15 : 1.45
+      if (!held.has(s)) {
+        let torque = -s.k * (s.angle - s.rest) - s.damp * s.angVel
+        if (pal.weather === 'wind' && s.role !== 'trunk') torque += gust * (s.role === 'twig' ? 2.4 : 1.1)
+        s.angVel += torque * dt
+        s.angle += s.angVel * dt
+      }
+      const cap = capOf(s)
       if (s.angle > s.rest + cap) {
         s.angle = s.rest + cap
-        s.angVel *= 0.3
-      }
-      if (s.angle < s.rest - cap) {
+        s.angVel *= -0.42
+      } else if (s.angle < s.rest - cap) {
         s.angle = s.rest - cap
-        s.angVel *= 0.3
+        s.angVel *= -0.42
       }
-      const strain = Math.abs(s.angle - s.rest) + Math.abs(s.angVel) * 0.12
+      const strain = Math.abs(s.angle - s.rest) + Math.abs(s.angVel) * 0.1
       if (strain > s.brk && s.role !== 'trunk') breakOff(s)
     }
     kinematics()
@@ -484,7 +517,8 @@ export function mount(stage, { still, peek } = {}) {
     let shedN = 0
     for (const s of segs) {
       if (!s.alive) continue
-      const force = Math.abs(s.angVel) * 0.08 + Math.abs(s.angle - s.rest) * 0.35
+      const cap = capOf(s)
+      const force = Math.abs(s.angVel) * 0.07 + (Math.abs(s.angle - s.rest) / cap) * 0.32
       if (force < 0.05) continue
       const spray = pal.pine && force > 0.35
       shedN += shedFrom(s, Math.min(1.4, force), spray)
@@ -569,24 +603,28 @@ export function mount(stage, { still, peek } = {}) {
       nodes.push(o, g)
       return { o, g }
     }
-    if (pal.weather === 'rain') {
-      const n = loopNoise({ freq: 1500, q: 0.55 })
-      n?.set(0.045, 1600)
-      if (n) noises.push(n)
-    } else if (pal.weather === 'wind') {
-      const n = loopNoise({ freq: 280, q: 0.5 })
-      n?.set(0.04, 240)
-      if (n) noises.push(n)
-    } else if (pal.weather === 'snow') {
-      const n = loopNoise({ freq: 900, q: 0.7 })
-      n?.set(0.022, 720)
-      if (n) noises.push(n)
-    } else {
-      osc('sine', 196, 0.012)
-      osc('triangle', 294, 0.008)
-      const n = loopNoise({ freq: 1800, q: 1.1 })
-      n?.set(0.012, 2000)
-      if (n) noises.push(n)
+    try {
+      if (pal.weather === 'rain') {
+        const n = loopNoise({ freq: 1500, q: 0.55 })
+        n?.set(0.045, 1600)
+        if (n) noises.push(n)
+      } else if (pal.weather === 'wind') {
+        const n = loopNoise({ freq: 280, q: 0.5 })
+        n?.set(0.04, 240)
+        if (n) noises.push(n)
+      } else if (pal.weather === 'snow') {
+        const n = loopNoise({ freq: 900, q: 0.7 })
+        n?.set(0.022, 720)
+        if (n) noises.push(n)
+      } else {
+        osc('sine', 196, 0.012)
+        osc('triangle', 294, 0.008)
+        const n = loopNoise({ freq: 1800, q: 1.1 })
+        n?.set(0.012, 2000)
+        if (n) noises.push(n)
+      }
+    } catch {
+      /* summer sun oscillators must not abort a grab */
     }
     ambient = {
       chirp() {
@@ -628,8 +666,6 @@ export function mount(stage, { still, peek } = {}) {
     if (peek || still || !live()) return
     if (e.pointerType !== 'touch' && e.button) return
     e.preventDefault?.()
-    unlock()
-    startAmbient()
     try {
       if (e.isTrusted) canvas.setPointerCapture?.(e.pointerId)
     } catch {
@@ -641,7 +677,13 @@ export function mount(stage, { still, peek } = {}) {
     grabs.set(p.id, { s: hit.s, t: hit.t, x: p.x, y: p.y })
     canvas.style.cursor = 'grabbing'
     taptic(7)
-    sfxCreak()
+    try {
+      unlock()
+      startAmbient()
+      sfxCreak()
+    } catch {
+      /* audio optional — grab already set */
+    }
   }
 
   function onMove(e) {
@@ -652,8 +694,31 @@ export function mount(stage, { still, peek } = {}) {
     g.y = p.y
   }
 
+  function shakeAround(s, kick) {
+    if (s.p >= 0) {
+      const p = segs[s.p]
+      p.angVel += kick * 0.18
+      for (const ki of p.kids) {
+        if (ki === s.i) continue
+        const sib = segs[ki]
+        if (sib?.alive) sib.angVel += kick * 0.24
+      }
+    }
+    for (const ki of s.kids) {
+      const c = segs[ki]
+      if (c?.alive) c.angVel += kick * 0.34
+    }
+  }
+
   function onUp(e) {
-    if (!grabs.has(e.pointerId)) return
+    const g = grabs.get(e.pointerId)
+    if (!g) return
+    const s = g.s
+    if (s?.alive) {
+      const kick = (s.angle - s.rest) * -2.6
+      s.angVel += kick
+      shakeAround(s, kick)
+    }
     grabs.delete(e.pointerId)
     try {
       if (canvas.hasPointerCapture?.(e.pointerId)) canvas.releasePointerCapture(e.pointerId)
@@ -661,7 +726,13 @@ export function mount(stage, { still, peek } = {}) {
       /* already */
     }
     if (!grabs.size) canvas.style.cursor = 'grab'
-    if (!peek && !still) sfxRustle(0.04)
+    if (!peek && !still) {
+      try {
+        sfxRustle(0.04)
+      } catch {
+        /* audio optional */
+      }
+    }
   }
 
   function onReset(e) {
@@ -1084,12 +1155,94 @@ export function mount(stage, { still, peek } = {}) {
   last = performance.now()
   raf = requestAnimationFrame(tick)
   canvas.__scene = poseScene
+  canvas.__stats = () => {
+    let maxBend = 0
+    let signed = 0
+    let maxVel = 0
+    let role = null
+    let i = -1
+    for (const s of segs) {
+      if (!s.alive) continue
+      const b = s.angle - s.rest
+      if (Math.abs(b) > maxBend) {
+        maxBend = Math.abs(b)
+        signed = b
+        role = s.role
+        i = s.i
+      }
+      maxVel = Math.max(maxVel, Math.abs(s.angVel))
+    }
+    const g = grabs.size ? [...grabs.values()][0] : null
+    let neighborVel = 0
+    if (g?.s?.p >= 0) {
+      for (const ki of segs[g.s.p].kids) {
+        if (ki === g.s.i) continue
+        const sib = segs[ki]
+        if (sib?.alive) neighborVel = Math.max(neighborVel, Math.abs(sib.angVel))
+      }
+      for (const ki of g.s.kids) {
+        const c = segs[ki]
+        if (c?.alive) neighborVel = Math.max(neighborVel, Math.abs(c.angVel))
+      }
+    }
+    return {
+      kind,
+      maxBend,
+      signed,
+      maxVel,
+      role,
+      i,
+      grabCount: grabs.size,
+      grabbed: g?.s ? { i: g.s.i, role: g.s.role, bend: Math.abs(g.s.angle - g.s.rest) } : null,
+      neighborVel,
+      falling: falling.length,
+      segs: segs.length,
+    }
+  }
+  canvas.__limbPoint = () => {
+    const limb =
+      segs.find((s) => s.role === 'limb' && s.alive && Math.abs(s.rest) > 0.12) ||
+      segs.find((s) => s.role === 'limb' && s.alive) ||
+      segs.find((s) => s.role === 'branch' && s.alive)
+    if (!limb) return null
+    return {
+      x: limb.x + (limb.tx - limb.x) * 0.74,
+      y: limb.y + (limb.ty - limb.y) * 0.74,
+      role: limb.role,
+      i: limb.i,
+    }
+  }
+  canvas.__leafPoint = () => {
+    for (const s of segs) {
+      if (!s.alive || s.role === 'trunk') continue
+      for (const leaf of s.leaves) {
+        if (!leaf.on) continue
+        const p = leafWorld(s, leaf)
+        return { x: p.x, y: p.y, role: s.role, i: s.i }
+      }
+    }
+    return null
+  }
+  canvas.__trunkPoint = () => {
+    const s = segs.find((seg) => seg.alive && seg.role === 'trunk')
+    if (!s) return null
+    return {
+      x: s.x + (s.tx - s.x) * 0.28,
+      y: s.y + (s.ty - s.y) * 0.28,
+      role: s.role,
+      i: s.i,
+    }
+  }
 
   return () => {
     cancelAnimationFrame(raf)
     stopWatch()
     stopAmbient()
     delete canvas.__scene
+    delete canvas.__stats
+    delete canvas.__limbPoint
+    delete canvas.__leafPoint
+    delete canvas.__trunkPoint
     canvas.removeEventListener('pointerdown', onDown)
     canvas.removeEventListener('pointermove', onMove)
     canvas.removeEventListener('pointerup', onUp)
