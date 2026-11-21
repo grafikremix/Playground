@@ -122,6 +122,19 @@ export const experiments = [
     stillWait: 520,
     crop: { x: 0.5, y: 0.5, z: 1.04 },
   },
+  {
+    slug: 'chick-cross',
+    title: 'chick cross',
+    blurb: 'Tap to hop. Don’t get left behind.',
+    prompt:
+      'The main character is a chick and you have to cross roads but there are obstacles like trains and if you hit the train then you die. You also need to tap the chick to move and the screen is automatically scrolling up not to fast but not to slow either and if you get left behind you die as well. The scene can change when you move up and up. It can be a forest, desert, lake. And on the lake you need jump on Lilly pads to make it across the river. There are also arrow buttons to go either left or right. And make a best score and the score you currently have at the top of the screen in white',
+    author: 'Vanessa',
+    date: '2026-11-21',
+    hint: '',
+    full: true,
+    stillWait: 560,
+    crop: { x: 0.5, y: 0.52, z: 1.06 },
+  },
 ]
 
 export const specimens = experiments.map((e, i) => ({
