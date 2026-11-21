@@ -112,6 +112,11 @@ export const experiments = [
       'Setting: outer space, futuristic. A jet is shooting at targets coming down from the sky. The jet has turbo sounds and is mainly at the bottom of the screen and can move left to right. The targets are asteroids that fall from the sky. Make it interesting different sizes. Each time the jet successfully shoots a target it makes an explosion sound. When the jet is activated to shoot make a laser come out of the jet in line with the direction it is shooting.  Targets (asteroids) fall slowly, and less at first and as the user successfully hits a target and/or after 20 seconds target moves a little faster. Essentially make the game faster as you progress. Keep a score tally of how many targets are successfully hit at the top right corner. Soundtrack is futuristic and engaging like a battle but make it dramatic.',
     author: 'Trish',
     date: '2026-11-21',
+    edit: {
+      text: 'Change the progression to get harder from 20 seconds to 45 seconds. Move the jet slightly higher up from the bottom of the screen and the only way to die is if an asteroid hits the jet, not when an asteroid leaves the frame. Change the control to a joystick on the left to control movement of the jet to go left, right up or down, and make a button on the right for shooting. Keep a high score tally on the top left so remember previous attempts to be able to beat previous high score. Make current tally bold. ANIMATE current tally make it bold and add a confetti when 1, you pass previous higher score. Make a different animation when the score moves up by 10 - bold it, make it slightly bigger for 2 seconds and change the color to highlight.',
+      date: '2026-11-21',
+      author: 'Trish',
+    },
     hint: '',
     full: true,
     stillWait: 520,
