@@ -1,6 +1,9 @@
 import './styles.css'
 import { fillStudio, withBase, specimenMeta, specimens } from './chrome.js'
 import { unlock, soundOn, setSoundOn } from './lib/audio.js'
+import { watchBuild } from './lib/fresh.js'
+
+watchBuild()
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -10,19 +13,8 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;')
 }
 
-function speakerOn() {
-  return `<svg class="sound-icon" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M4.5 9.2h3.1L13 5.2v13.6l-5.4-4H4.5z"/>
-    <path d="M16.1 9.1c1.15.85 1.9 2.05 1.9 2.9s-.75 2.05-1.9 2.9" fill="none"/>
-    <path d="M18.6 6.8c1.85 1.4 3.05 3.25 3.05 5.2s-1.2 3.8-3.05 5.2" fill="none"/>
-  </svg>`
-}
-
-function speakerOff() {
-  return `<svg class="sound-icon" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M4.5 9.2h3.1L13 5.2v13.6l-5.4-4H4.5z"/>
-    <path d="M16.2 8.2l6.1 7.6M22.3 8.2l-6.1 7.6" fill="none"/>
-  </svg>`
+function soundLabel(on) {
+  return on ? 'Sound On' : 'Sound Off'
 }
 
 function ideaChrome(spec) {
@@ -39,9 +31,9 @@ function ideaChrome(spec) {
     <button
       class="sound-toggle"
       type="button"
-      aria-label="Sound"
+      aria-label="${soundLabel(on)}"
       aria-pressed="${on ? 'true' : 'false'}"
-    >${on ? speakerOn() : speakerOff()}</button>
+    >${soundLabel(on)}</button>
     <div class="prompt-window" id="${id}" role="dialog" aria-modal="false" aria-labelledby="${id}-title" hidden>
       <button class="prompt-close" type="button" aria-label="Close">×</button>
       <div class="prompt-scroll">
@@ -125,8 +117,10 @@ function bindPrompt(root) {
 
 function paintSound(btn) {
   const on = soundOn()
+  const label = soundLabel(on)
+  btn.textContent = label
+  btn.setAttribute('aria-label', label)
   btn.setAttribute('aria-pressed', on ? 'true' : 'false')
-  btn.innerHTML = on ? speakerOn() : speakerOff()
 }
 
 function bindSound(root) {
