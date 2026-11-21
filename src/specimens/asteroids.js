@@ -11,7 +11,7 @@ const NEON = '#7dffea'
 const MAG = '#ff4fd8'
 const ORANGE = '#ff9a3a'
 const BEST_KEY = 'playground-asteroids-best'
-const HUD = 56
+const HUD = 22
 const STEP_S = 45
 
 function clamp(n, a, b) {

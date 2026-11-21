@@ -1,8 +1,10 @@
 import './styles.css'
 import { withBase, specimens } from './chrome.js'
 import { watchBuild } from './lib/fresh.js'
+import { mountCrt } from './lib/crt.js'
 
 watchBuild()
+mountCrt()
 
 const HOLD = 350
 const MOVE = 14
