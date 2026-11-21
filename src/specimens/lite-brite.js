@@ -1,5 +1,6 @@
 import { taptic } from '../lib/haptics.js'
 import { unlock, plinkAllowed, tone, voices } from '../lib/audio.js'
+import { isLive } from '../lib/play.js'
 
 const reduced =
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -166,13 +167,14 @@ export function mount(stage, { still, peek } = {}) {
   }
 
   function onDown(e) {
-    if (e.button) return
+    if (e.button || !isLive()) return
     unlock()
     canvas.setPointerCapture?.(e.pointerId)
     track(e, true)
   }
 
   function onMove(e) {
+    if (!isLive()) return
     const hovering = e.pointerType === 'mouse'
     const dragging = lastPt.has(e.pointerId) || e.buttons
     if (!hovering && !dragging) return
@@ -231,7 +233,7 @@ export function mount(stage, { still, peek } = {}) {
   function tick(now) {
     const dt = Math.min(0.033, (now - last) / 1000)
     last = now
-    if (!still) {
+    if (!still && isLive()) {
       const decay = dt / FADE
       for (let i = 0; i < n; i++) {
         if (light[i] > 0) light[i] = Math.max(0, light[i] - decay)

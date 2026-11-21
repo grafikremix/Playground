@@ -1,25 +1,98 @@
 // Synthesized Web Audio for idea actions. No samples.
-// iOS Safari only unlocks inside a user-activation event (touchend / click /
-// pointerup / keydown). pointerdown and drags do not count. Keep priming until
-// ctx.state === 'running', play a 1-sample buffer, and hold a silent <audio>
+// iOS Safari only unlocks inside a user-activation event. Retry resume on every
+// touchstart / touchmove / touchend / pointerup / click (and keydown) until
+// ctx.state === 'running'. Play a 1-sample buffer and hold a silent <audio>
 // loop so output rides the media channel (ringer switch). Peek/stills stay quiet.
+// Sound preference persists (localStorage + cookie, path=/Playground, 1 year).
 
 let ctx
 let master
 let comp
 let live = 0
 let unlocked = false
-let gestured = false
 let priming = false
 let media
 let mediaUrl
+let enabled = true
 
 const MAX = 14
-const GESTURES = ['touchstart', 'touchend', 'pointerup', 'click', 'keydown']
+const LIVE_GAIN = 0.16
+const STORE = 'playground-sound'
+const COOKIE = 'playground-sound'
+const YEAR = 60 * 60 * 24 * 365
+const GESTURES = ['touchstart', 'touchmove', 'touchend', 'pointerup', 'click', 'keydown']
 const GESTURE_OPTS = { capture: true, passive: true }
+
+function cookiePath() {
+  const base = import.meta.env.BASE_URL || '/'
+  if (base.startsWith('/Playground')) return '/Playground'
+  return base.replace(/\/$/, '') || '/'
+}
+
+function readCookie() {
+  if (typeof document === 'undefined') return null
+  const parts = document.cookie.split(';')
+  for (const part of parts) {
+    const [k, ...rest] = part.trim().split('=')
+    if (k === COOKIE) return decodeURIComponent(rest.join('='))
+  }
+  return null
+}
+
+function writeCookie(on) {
+  if (typeof document === 'undefined') return
+  const v = on ? '1' : '0'
+  document.cookie = `${COOKIE}=${encodeURIComponent(v)}; path=${cookiePath()}; max-age=${YEAR}; SameSite=Lax`
+}
+
+function readStore() {
+  try {
+    const v = localStorage.getItem(STORE)
+    if (v === '0' || v === 'off') return false
+    if (v === '1' || v === 'on') return true
+  } catch {
+    /* private mode */
+  }
+  const c = readCookie()
+  if (c === '0' || c === 'off') return false
+  if (c === '1' || c === 'on') return true
+  return true
+}
+
+function persist() {
+  const v = enabled ? '1' : '0'
+  try {
+    localStorage.setItem(STORE, v)
+  } catch {
+    /* private mode */
+  }
+  writeCookie(enabled)
+}
+
+function applyGain() {
+  if (!master || !ctx) return
+  const t = ctx.currentTime
+  const g = enabled && !silent() ? LIVE_GAIN : 0
+  try {
+    master.gain.cancelScheduledValues(t)
+    master.gain.setTargetAtTime(g, t, 0.02)
+  } catch {
+    master.gain.value = g
+  }
+}
 
 export function silent() {
   return document.body.classList.contains('is-peek') || document.body.classList.contains('is-still')
+}
+
+export function soundOn() {
+  return enabled
+}
+
+export function setSoundOn(on) {
+  enabled = !!on
+  persist()
+  applyGain()
 }
 
 export function getContext() {
@@ -70,7 +143,7 @@ function silentWavUri() {
 }
 
 function startSilentMedia() {
-  if (typeof document === 'undefined') return
+  if (typeof document === 'undefined' || silent()) return
   if (!media) {
     media = document.createElement('audio')
     media.setAttribute('playsinline', '')
@@ -107,7 +180,6 @@ function onState() {
   const s = ctx?.state
   if (s === 'running') {
     unlocked = true
-    gestured = true
     stopPriming()
   } else if (s === 'suspended' || s === 'interrupted') {
     unlocked = false
@@ -122,7 +194,7 @@ function createCtx() {
   setPlaybackSession()
   ctx = new AC()
   master = ctx.createGain()
-  master.gain.value = 0.16
+  master.gain.value = enabled && !silent() ? LIVE_GAIN : 0
   comp = ctx.createDynamicsCompressor()
   comp.threshold.value = -20
   comp.knee.value = 10
@@ -145,19 +217,20 @@ function resumeCtx() {
     p.then(() => {
       if (ctx?.state === 'running') {
         unlocked = true
+        applyGain()
         stopPriming()
       }
     }).catch(() => {})
   }
   if (ctx.state === 'running') {
     unlocked = true
+    applyGain()
     stopPriming()
   }
 }
 
 export function unlock() {
   if (silent()) return null
-  gestured = true
   const a = createCtx()
   if (!a) return null
   resumeCtx()
@@ -198,6 +271,8 @@ function onShow() {
 }
 
 if (typeof window !== 'undefined') {
+  enabled = readStore()
+  persist()
   startPriming()
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') onShow()
@@ -206,10 +281,9 @@ if (typeof window !== 'undefined') {
 }
 
 export function canPlay() {
-  if (!ctx || silent() || ctx.state === 'closed') return false
-  if (ctx.state === 'running') return true
-  if (ctx.state === 'interrupted') return false
-  return gestured
+  if (!enabled || silent()) return false
+  if (!ctx || ctx.state === 'closed') return false
+  return ctx.state === 'running'
 }
 
 export function audioNow() {
@@ -280,7 +354,7 @@ export function noise({ duration = 0.18, peak = 0.1, freq = 800, q = 1, type = '
 
 export function loopNoise({ freq = 420, q = 0.8 } = {}) {
   const a = unlock()
-  if (!a || silent()) return null
+  if (!a || silent() || !canPlay() || !master) return null
   const len = Math.max(1, Math.floor(a.sampleRate * 0.35))
   const buf = a.createBuffer(1, len, a.sampleRate)
   const data = buf.getChannelData(0)

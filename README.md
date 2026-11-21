@@ -16,7 +16,7 @@ Or `PLAYGROUND_URL=http://127.0.0.1:4173 npm run stills` against a preview build
 
 Ideas live in `src/experiments.js`. Each entry needs `prompt` (the exact wording, unchanged) and `date` (ISO, `YYYY-MM-DD`). To add one: an entry there, `src/specimens/<slug>.js`, `src/pages/<slug>.js`, `specimens/<slug>.html`, then `npm run stills`.
 
-Every idea has synthesized Web Audio for its actions (no samples). Unlock on a real user-activation event (`touchend` / `pointerup` / `click` / `keydown`) so it works on iPhone, where sound is the haptic fallback. Keep it tasteful, low volume, no clipping. Peek and stills stay silent.
+Every idea has synthesized Web Audio for its actions (no samples). Idea pages show a shared Start button first; the tap unlocks audio (a real click) and starts the piece. Nothing animates or takes input until then. Peek on the landing auto-plays muted without Start; stills skip it too. Unlock also retries on `touchstart` / `touchmove` / `touchend` / `pointerup` / `click` (and `keydown`) until the audio context is running, so a first drag or hold works on iPhone. Sound is the haptic fallback there. A speaker toggle sits bottom-left on every idea page (default on). Off mutes the master and skips creating voices. The choice persists in `localStorage` and a `playground-sound` cookie (`path=/Playground`, 1 year). Keep it tasteful, low volume, no clipping. Peek and stills stay silent.
 
 Default visual style for every new idea is techno / electric Tron-style 80s — neon glow lines, dark backgrounds, grid/vector feel, synthy sound — within the Ice theme, unless the prompt explicitly asks otherwise. Existing ideas stay as they are.
 

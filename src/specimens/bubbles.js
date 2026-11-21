@@ -1,5 +1,6 @@
 import { taptic } from '../lib/haptics.js'
 import { unlock, canPlay, getContext, getMaster } from '../lib/audio.js'
+import { isLive } from '../lib/play.js'
 
 const COLORS = [
   '#b7ecff',
@@ -51,6 +52,7 @@ function when() {
 }
 
 function envGain(duration, peak = 0.9) {
+  if (!canPlay()) return null
   const audio = getContext()
   const bus = getMaster()
   if (!audio || !bus) return null
@@ -347,6 +349,7 @@ export function mount(stage, { still, peek } = {}) {
   if (!peek) {
     canvas.addEventListener('pointerdown', (e) => {
       if (e.button) return
+      if (!isLive()) return
       unlockAudio()
       const p = local(e)
       const b = hit(p.x, p.y)
@@ -407,7 +410,7 @@ export function mount(stage, { still, peek } = {}) {
   }
 
   function drawBubble(b, t) {
-    const bob = reduced || still ? 0 : Math.sin(t * 0.0011 + b.phase) * 3.2
+    const bob = reduced || still || !isLive() ? 0 : Math.sin(t * 0.0011 + b.phase) * 3.2
     const y = b.y + bob
     const g = ctx.createRadialGradient(
       b.x - b.r * 0.32,
@@ -460,29 +463,7 @@ export function mount(stage, { still, peek } = {}) {
     last = now
     const t = now - t0
 
-    if (!still) {
-      for (const b of bubbles) {
-        if (b.held != null) continue
-        b.vx += Math.sin(t * 0.0004 + b.phase) * 2.2 * dt
-        b.vy += Math.cos(t * 0.00035 + b.phase * 1.3) * 1.8 * dt
-        const sp = Math.hypot(b.vx, b.vy)
-        const max = reduced ? 28 : 48
-        if (sp > max) {
-          b.vx = (b.vx / sp) * max
-          b.vy = (b.vy / sp) * max
-        }
-        b.x += b.vx * dt
-        b.y += b.vy * dt
-      }
-      collide()
-      for (let i = bubbles.length - 1; i >= 0; i--) {
-        const b = bubbles[i]
-        if (b.held != null) continue
-        const m = b.r + 72
-        if (b.x < -m || b.x > w + m || b.y < -m || b.y > h + m) bubbles.splice(i, 1)
-      }
-      while (bubbles.length < flock) spawn(false)
-    } else {
+    if (still) {
       for (const b of bubbles) {
         b.x += b.vx * dt * 0.25
         b.y += b.vy * dt * 0.25
@@ -504,6 +485,28 @@ export function mount(stage, { still, peek } = {}) {
         }
       }
       collide()
+    } else if (isLive()) {
+      for (const b of bubbles) {
+        if (b.held != null) continue
+        b.vx += Math.sin(t * 0.0004 + b.phase) * 2.2 * dt
+        b.vy += Math.cos(t * 0.00035 + b.phase * 1.3) * 1.8 * dt
+        const sp = Math.hypot(b.vx, b.vy)
+        const max = reduced ? 28 : 48
+        if (sp > max) {
+          b.vx = (b.vx / sp) * max
+          b.vy = (b.vy / sp) * max
+        }
+        b.x += b.vx * dt
+        b.y += b.vy * dt
+      }
+      collide()
+      for (let i = bubbles.length - 1; i >= 0; i--) {
+        const b = bubbles[i]
+        if (b.held != null) continue
+        const m = b.r + 72
+        if (b.x < -m || b.x > w + m || b.y < -m || b.y > h + m) bubbles.splice(i, 1)
+      }
+      while (bubbles.length < flock) spawn(false)
     }
 
     for (let i = critters.length - 1; i >= 0; i--) {

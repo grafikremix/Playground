@@ -6,6 +6,7 @@ import {
   tone,
   noise,
 } from '../lib/audio.js'
+import { isLive } from '../lib/play.js'
 
 const reduced =
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -321,7 +322,7 @@ export function mount(stage, { still, peek } = {}) {
   }
 
   function onDown(e) {
-    if (e.button || peek || still) return
+    if (e.button || peek || still || !isLive()) return
     unlock()
     ensureFx()
     canvas.setPointerCapture?.(e.pointerId)
@@ -574,8 +575,8 @@ export function mount(stage, { still, peek } = {}) {
   function tick(now) {
     const dt = Math.min(0.033, (now - last) / 1000)
     last = now
-    t += dt
-    if (!still) {
+    if (still || isLive()) t += dt
+    if (!still && isLive()) {
       if (grab && !grab.c.gone) {
         grab.held += dt
         const px = grab.px ?? grab.ox

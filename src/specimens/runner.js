@@ -1,5 +1,6 @@
 import { taptic } from '../lib/haptics.js'
 import { unlock, tone, noise } from '../lib/audio.js'
+import { isLive } from '../lib/play.js'
 
 const reduced =
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -43,20 +44,18 @@ export function mount(stage, { still, peek } = {}) {
     ? 'width:100%;height:100%;display:block;pointer-events:none;touch-action:none;'
     : 'width:100%;height:100%;display:block;touch-action:none;cursor:pointer;-webkit-user-select:none;user-select:none;'
 
-  let startBtn = null
   let timerEl = null
   if (!peek && !still) {
-    startBtn = document.createElement('button')
-    startBtn.type = 'button'
-    startBtn.className = 'start'
-    startBtn.textContent = 'Start'
     timerEl = document.createElement('div')
     timerEl.className = 'timer'
     timerEl.textContent = '1:00'
-    startBtn.addEventListener('click', () => begin())
-    stage.replaceChildren(canvas, timerEl, startBtn)
+    stage.replaceChildren(canvas, timerEl)
   } else {
     stage.replaceChildren(canvas)
+  }
+
+  function startEl() {
+    return document.querySelector('.start')
   }
 
   const frame = stage.closest('.stage-frame') || stage
@@ -172,9 +171,10 @@ export function mount(stage, { still, peek } = {}) {
     canvas.height = Math.round(h * dpr)
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.imageSmoothingEnabled = false
-    u = Math.max(6.5, Math.min(w, h) / 34)
+    const playH = peek ? h * 0.56 : h
+    u = Math.max(6.5, Math.min(w, playH) / 34)
     floorH = Math.max(26, u * 3.1)
-    floorY = h - floorH
+    floorY = playH - floorH
     cloudY = floorY - u * 7.1
     heroW = u * 1.75
     heroH = u * 2.55
@@ -277,7 +277,8 @@ export function mount(stage, { still, peek } = {}) {
     phase = 'play'
     lastCeil = 60
     footT = 0
-    if (startBtn) startBtn.hidden = true
+    const btn = startEl()
+    if (btn) btn.hidden = true
     if (timerEl) timerEl.textContent = formatTime(clock)
     sfxStart()
   }
@@ -287,15 +288,15 @@ export function mount(stage, { still, peek } = {}) {
     phase = 'dead'
     taptic(18)
     sfxDeath()
-    if (startBtn) {
-      startBtn.hidden = false
-      startBtn.textContent = 'Start'
+    const btn = startEl()
+    if (btn) {
+      btn.hidden = false
+      btn.textContent = 'Start'
     }
   }
 
   function promptOpen() {
-    const win = document.querySelector('.prompt-window')
-    return win && !win.hidden
+    return document.body.classList.contains('is-prompt')
   }
 
   function jump() {
@@ -581,6 +582,11 @@ export function mount(stage, { still, peek } = {}) {
   function tick(now) {
     const dt = Math.min(0.033, (now - last) / 1000)
     last = now
+    if ((!isLive() || promptOpen()) && !peek && !still) {
+      draw()
+      raf = requestAnimationFrame(tick)
+      return
+    }
     if (!still) {
       if (phase === 'play' || peek) {
         if (phase === 'play') {
@@ -615,6 +621,7 @@ export function mount(stage, { still, peek } = {}) {
   function onPointer(e) {
     if (e.button) return
     unlock()
+    if (promptOpen()) return
     if (phase === 'play') {
       e.preventDefault()
       jump()
@@ -627,8 +634,10 @@ export function mount(stage, { still, peek } = {}) {
     if (promptOpen()) return
     e.preventDefault()
     if (phase === 'play') jump()
-    else if ((phase === 'ready' || phase === 'dead') && !peek && !still) begin()
+    else if ((phase === 'ready' || phase === 'dead') && !peek && !still) startEl()?.click()
   }
+
+  if (!peek && !still) window.addEventListener('playground-start', begin)
 
   if (!peek) {
     canvas.addEventListener('pointerdown', onPointer)
@@ -658,5 +667,6 @@ export function mount(stage, { still, peek } = {}) {
     ro.disconnect()
     canvas.removeEventListener('pointerdown', onPointer)
     window.removeEventListener('keydown', onKey)
+    window.removeEventListener('playground-start', begin)
   }
 }

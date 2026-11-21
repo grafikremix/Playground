@@ -2,8 +2,9 @@
 // 1. one object here
 // 2. src/specimens/<slug>.js  +  src/pages/<slug>.js  +  specimens/<slug>.html
 // 3. npm run stills
-// 4. synthesized Web Audio for each action (unlock on touchend/pointerup/click/keydown; iPhone haptic fallback)
+// 4. synthesized Web Audio for each action (unlock on touchstart/touchmove/touchend/pointerup/click until ctx is running; iPhone haptic fallback; honor the HUD sound toggle)
 // 5. default look: techno / electric Tron-style 80s (neon glow lines, dark bg, grid/vector feel, synthy sound) within Ice, unless the prompt asks otherwise
+// 6. wait for the shared template Start (isLive() in src/lib/play.js). Peek and stills skip it. Runner may show Start again after death.
 //
 // {
 //   slug: 'example',

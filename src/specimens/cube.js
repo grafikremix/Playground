@@ -4,6 +4,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { taptic } from '../lib/haptics.js'
 import { unlock, canPlay, tone, noise, loopNoise } from '../lib/audio.js'
+import { isLive } from '../lib/play.js'
 
 const reduced =
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -342,7 +343,7 @@ export function mount(stage, { still, peek } = {}) {
   }
 
   function onDown(e) {
-    if (peek || still || mode !== 'play') return
+    if (peek || still || !isLive() || mode !== 'play') return
     if (e.button) return
     unlock()
     ensureWhoosh()
@@ -437,7 +438,7 @@ export function mount(stage, { still, peek } = {}) {
     last = now
     const speed = spinSpeed()
 
-    if (mode === 'play') {
+    if (mode === 'play' && isLive()) {
       if (!dragging && !still) {
         if (peek || (reduced && speed < 0.04)) {
           if (!reduced) {
@@ -480,7 +481,7 @@ export function mount(stage, { still, peek } = {}) {
       if (t >= 1) restart()
     }
 
-    if (!whoosh && !peek && !still) ensureWhoosh()
+    if (!whoosh && !peek && !still && isLive()) ensureWhoosh()
     if (whoosh && mode === 'play') {
       const k = Math.min(1, speed / 8.5)
       whoosh.set(k * 0.055, 300 + k * 520)
