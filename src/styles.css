@@ -121,8 +121,9 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .crt-roll,
   .crt-screen,
-  .mast h1::after,
-  .idea-hud::after {
+  .type-caret,
+  .idea-hud::after,
+  .tile.is-in {
     animation: none;
   }
   .crt-roll {
@@ -130,6 +131,12 @@ body {
   }
   .crt-screen {
     opacity: 0.4;
+  }
+  html.is-js:not(.is-intro-done) .tile,
+  .tile.is-in {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
   }
 }
 
@@ -209,28 +216,66 @@ button, input, select { font: inherit; color: inherit; }
   padding-right: 0.72em;
 }
 
-.mast h1::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  right: 0;
-  width: 0.42em;
-  height: 0.78em;
-  transform: translateY(-50%);
-  background: var(--p);
-  box-shadow: 0 0 10px rgba(183, 236, 255, 0.45);
-  animation: crt-cursor 1.1s steps(1, end) infinite;
-}
-
 @keyframes crt-cursor {
   0%, 49% { opacity: 1; }
   50%, 100% { opacity: 0; }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.type-line {
+  display: none;
+}
+
+html.is-js .type-ghost {
+  visibility: hidden;
+}
+
+html.is-js .type-line {
+  display: block;
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  white-space: inherit;
+}
+
+.type-caret {
+  display: inline-block;
+  width: 0.42em;
+  height: 0.7em;
+  margin-left: 0.08em;
+  margin-right: -0.5em;
+  vertical-align: -0.05em;
+  background: var(--p);
+  box-shadow: 0 0 10px rgba(183, 236, 255, 0.45);
+  animation: crt-cursor 1.1s steps(1, end) infinite;
+  pointer-events: none;
+}
+
+.type-caret.is-out {
+  animation: none;
+  transform: scale(0.2);
+  opacity: 0;
+  transform-origin: left center;
+  transition: opacity 0.28s ease, transform 0.28s ease;
 }
 
 .lede {
   font-size: 0.92rem;
   color: var(--p-soft);
   margin: 14px 0 0;
+  position: relative;
 }
 
 .grid {
@@ -249,6 +294,27 @@ button, input, select { font: inherit; color: inherit; }
 .tile {
   position: relative;
   aspect-ratio: 1;
+}
+
+html.is-js:not(.is-intro-done) .tile:not(.is-in) {
+  opacity: 0;
+  transform: translateY(12px);
+  pointer-events: none;
+}
+
+.tile.is-in {
+  animation: tile-in 0.48s ease forwards;
+}
+
+@keyframes tile-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .tile-hit {
@@ -280,7 +346,8 @@ button, input, select { font: inherit; color: inherit; }
   pointer-events: none;
   opacity: 0;
   background: var(--bg);
-  transition: opacity 0.35s ease;
+  transition: opacity 0.35s ease, filter 0.35s ease;
+  filter: saturate(0.6);
 }
 
 .tile.is-peek .tile-peek {
@@ -311,6 +378,22 @@ button, input, select { font: inherit; color: inherit; }
   -webkit-user-drag: none;
   -webkit-user-select: none;
   user-select: none;
+  filter: saturate(0.6);
+  transition: filter 0.35s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .tile:hover .still-layer img,
+  .tile:hover .still-layer canvas,
+  .tile:hover .tile-peek {
+    filter: saturate(1);
+  }
+}
+
+.tile.is-peek .still-layer img,
+.tile.is-peek .still-layer canvas,
+.tile.is-peek .tile-peek {
+  filter: saturate(1);
 }
 
 .tile-label {

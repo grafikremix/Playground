@@ -2,9 +2,83 @@ import './styles.css'
 import { withBase, specimens } from './chrome.js'
 import { watchBuild } from './lib/fresh.js'
 import { mountCrt } from './lib/crt.js'
+import { canPlay, tone } from './lib/audio.js'
 
 watchBuild()
 mountCrt()
+
+const TITLE = 'Radley’s\u00a0AI\u00a0Playground'
+const LEDES = [
+  'An interactive AI playground for my random ideas. My only rule: I prompt once and allow myself just one edit. Most ideas are from me but sometimes I’ll have a special guest!',
+  'Random ideas from my head, made interactive with AI. One prompt, one edit, that’s the rule. Mostly mine, with the occasional special guest.',
+  'My interactive AI playground. I get one prompt and one edit per idea, no more. Most ideas are mine. Some come from special guests.',
+  'Ideas I dream up, built by AI from a single prompt. One edit allowed, then it ships. Now and then a special guest takes a turn.',
+  'A playground for whatever pops into my head. I prompt once, edit once, and let AI build the rest. Special guests welcome.',
+  'One idea. One prompt. One edit, max. Mostly from me, sometimes from a special guest, all brought to life with AI.',
+  'Straight out of my head and into the browser. One prompt, one edit, built by AI. Special guests drop in sometimes.',
+  'I think it up, prompt it once, and AI builds it. One edit allowed. Every so often a special guest gets the keyboard.',
+  'A sandbox for my stray ideas. Each one gets a single prompt and a single edit. Mostly me, occasionally a special guest.',
+  'Half-baked ideas, fully playable. One prompt from me, one edit at most, AI does the building. Guests welcome.',
+  'My rule is simple: one prompt, one edit, ship it. The ideas are mine, the building is AI’s, and sometimes a special guest joins in.',
+  'Little experiments from my brain, brought to life with AI. One prompt each. One edit, tops. Special guests now and then.',
+  'Whatever I’m daydreaming about, built in one prompt. I allow myself one edit. Some days a special guest takes over.',
+  'An interactive notebook of random ideas. I prompt, AI builds, I get one edit. Mostly mine, plus the odd special guest.',
+  'Ideas first, AI second. One prompt per idea and only one edit allowed. Special guests appear from time to time.',
+  'Playable ideas from my head. I write the prompt once and edit once. Every now and then a special guest writes one.',
+  'No drafts, no redos. One prompt, one edit, built by AI. Mostly my ideas, sometimes a special guest’s.',
+  'A place where my random thoughts become interactive. One prompt, one edit, AI handles the rest. Special guests included.',
+  'I bring the ideas, AI brings them to life. One prompt and one edit per idea. Occasionally a special guest brings one too.',
+  'Random ideas, one take each. I prompt once, allow one edit, and let it be. Most are mine. Some are from special guests.',
+]
+const LEDE_KEY = 'playground-lede-last'
+
+function pickLede() {
+  let last = ''
+  try {
+    last = localStorage.getItem(LEDE_KEY) || ''
+  } catch {
+    /* private mode */
+  }
+  const pool = LEDES.filter((s) => s !== last)
+  const next = (pool.length ? pool : LEDES)[(Math.random() * (pool.length ? pool.length : LEDES.length)) | 0]
+  try {
+    localStorage.setItem(LEDE_KEY, next)
+  } catch {
+    /* private mode */
+  }
+  return next
+}
+
+function wait(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
+}
+
+let lastTick = 0
+function keyTick() {
+  if (!canPlay()) return
+  const now = performance.now()
+  if (now - lastTick < 32) return
+  lastTick = now
+  tone({ type: 'square', freq: 1880 + Math.random() * 420, duration: 0.016, peak: 0.012 })
+}
+
+function cadence(ch, n, budget) {
+  const base = budget / Math.max(1, n)
+  let m = 0.68 + Math.random() * 0.72
+  if (ch === ' ' || ch === '\u00a0') m *= 1.18
+  if (/[.,!:]/.test(ch)) m *= 1.85
+  return Math.max(7, base * m)
+}
+
+async function typeInto(el, text, budget) {
+  const chars = [...text]
+  el.textContent = ''
+  for (let i = 0; i < chars.length; i++) {
+    el.textContent += chars[i]
+    keyTick()
+    await wait(cadence(chars[i], chars.length, budget))
+  }
+}
 
 const HOLD = 350
 const MOVE = 14
@@ -74,6 +148,59 @@ function startPeek(tile) {
 }
 
 grid.querySelectorAll('.tile').forEach(bindTile)
+
+function revealTiles() {
+  document.documentElement.classList.add('is-intro-done')
+  const tiles = [...grid.querySelectorAll('.tile')]
+  tiles.forEach((tile, i) => {
+    tile.style.animationDelay = reduced ? '0s' : `${Math.min(i, 8) * 0.055}s`
+    tile.classList.add('is-in')
+  })
+}
+
+function paintLede(text) {
+  const lede = document.querySelector('.lede')
+  if (!lede) return
+  const sr = lede.querySelector('.sr-only')
+  const ghost = lede.querySelector('.type-ghost')
+  if (sr) sr.textContent = text
+  if (ghost) ghost.textContent = text
+}
+
+async function playIntro() {
+  const titleOut = document.querySelector('[data-type="title"]')
+  const ledeOut = document.querySelector('[data-type="lede"]')
+  const ledeLine = ledeOut?.parentElement
+  const titleLine = titleOut?.parentElement
+  const lede = pickLede()
+  paintLede(lede)
+
+  if (!titleOut || !ledeOut || reduced) {
+    if (titleOut) titleOut.textContent = TITLE
+    if (ledeOut) ledeOut.textContent = lede
+    revealTiles()
+    return
+  }
+
+  const caret = document.createElement('span')
+  caret.className = 'type-caret'
+  caret.setAttribute('aria-hidden', 'true')
+  titleOut.textContent = ''
+  ledeOut.textContent = ''
+  titleLine.appendChild(caret)
+
+  await typeInto(titleOut, TITLE, 980)
+  await wait(140)
+  ledeLine.appendChild(caret)
+  await typeInto(ledeOut, lede, 1680)
+  await wait(90)
+  caret.classList.add('is-out')
+  await wait(320)
+  caret.remove()
+  revealTiles()
+}
+
+playIntro()
 
 function bindTile(tile) {
   const hit = tile.querySelector('.tile-hit')
