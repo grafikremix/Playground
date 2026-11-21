@@ -63,6 +63,18 @@ export const experiments = [
     stillWait: 420,
     crop: { x: 0.36, y: 0.58, z: 1.08 },
   },
+  {
+    slug: 'aurora',
+    title: 'aurora',
+    blurb: 'Pull the curtains. Hold far enough and they burst.',
+    prompt:
+      'Aurora borealis but with a twist. Starry night with the borealis lights shining. The borealis lights shine different colors like a rainbow that randomly change and sway gracefully like a curtain catching a gentle wind. The interaction: The user can pull any part of the borealis which can stretch and bend. Elasticity and bouncy is how I would describe the interaction. Elastic on the pull and bouncy on the release. The twist is that if the user pulls far and long enough the borealis will explode like fireworks only to disappear like a thin fog into the night. Once that happens new borealis lights will slowly creep into view. In order for the fire works to happen the user must pull the furthest the finger/mouse can travel on screen and at minimum for 5 seconds. As the pulls the borealis will visibly vibrate. Start off as small vibrations but as the pull is longer in distance and time the vibrations get more intense until the borealis can’t take the tension anymore and finally explodes into a beautiful display of fireworks.',
+    date: '2026-11-20',
+    hint: '',
+    full: true,
+    stillWait: 520,
+    crop: { x: 0.5, y: 0.36, z: 1.06 },
+  },
 ]
 
 export const specimens = experiments.map((e, i) => ({
