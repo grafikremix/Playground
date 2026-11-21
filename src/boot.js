@@ -2,6 +2,7 @@ import './styles.css'
 import { fillStudio, withBase, specimenMeta, specimens } from './chrome.js'
 import { unlock, soundOn, setSoundOn, tone } from './lib/audio.js'
 import { watchBuild } from './lib/fresh.js'
+import { resolveVersion, writeStoredVersion, setVersionInUrl } from './lib/version.js'
 
 watchBuild()
 
@@ -15,6 +16,22 @@ function escapeHtml(value) {
 
 function soundLabel(on) {
   return on ? 'Sound On' : 'Sound Off'
+}
+
+function playSwitchMarkup(extraClass = '') {
+  const cls = ['play-switch', extraClass].filter(Boolean).join(' ')
+  return `<button
+    class="${cls}"
+    type="button"
+    role="switch"
+    aria-checked="true"
+    aria-label="Original / Edit"
+    data-play-switch
+  >
+    <span data-side="original">Original</span>
+    <span class="prompt-switch-rule" aria-hidden="true">/</span>
+    <span data-side="edit">Edit</span>
+  </button>`
 }
 
 function ideaChrome(spec) {
@@ -36,27 +53,13 @@ function ideaChrome(spec) {
       aria-label="${soundLabel(on)}"
       aria-pressed="${on ? 'true' : 'false'}"
     >${soundLabel(on)}</button>
+    ${edit ? playSwitchMarkup('version-toggle') : ''}
     <div class="prompt-window" id="${id}" role="dialog" aria-modal="false" aria-labelledby="${id}-title" hidden>
       <button class="prompt-close" type="button" aria-label="Close">×</button>
       <div class="prompt-scroll">
         <h2 class="prompt-title" id="${id}-title">${escapeHtml(spec.title)}</h2>
         <p class="prompt-blurb">${escapeHtml(spec.blurb)}</p>
-        ${
-          edit
-            ? `<button
-          class="prompt-switch"
-          type="button"
-          role="switch"
-          aria-checked="false"
-          aria-label="Original / Edit"
-          data-prompt-switch
-        >
-          <span data-side="original">Original</span>
-          <span class="prompt-switch-rule" aria-hidden="true">/</span>
-          <span data-side="edit">Edit</span>
-        </button>`
-            : ''
-        }
+        ${edit ? playSwitchMarkup('prompt-switch') : ''}
         <pre class="prompt-text" data-prompt></pre>
         <div class="prompt-meta">
           <p>Idea ${escapeHtml(spec.idea)}</p>
@@ -93,23 +96,23 @@ function sfxSwitch() {
   tone({ type: 'sine', freq: 980, duration: 0.045, peak: 0.045 })
 }
 
-function bindPromptView(root, spec) {
-  const pre = root.querySelector('[data-prompt]')
-  const sw = root.querySelector('[data-prompt-switch]')
-  if (!pre) return
-  const paint = (editOn) => {
-    const useEdit = editOn && spec.edit?.text
-    pre.textContent = useEdit ? spec.edit.text : (spec.prompt ?? '')
-    if (!sw) return
-    sw.setAttribute('aria-checked', String(!!useEdit))
-    sw.classList.toggle('is-edit', !!useEdit)
+function normalizeMounts(mounts) {
+  if (typeof mounts === 'function') return { edit: mounts, original: mounts }
+  return {
+    edit: mounts?.edit || mounts?.original,
+    original: mounts?.original || mounts?.edit,
   }
-  paint(false)
-  if (!sw) return
-  sw.addEventListener('click', () => {
-    sfxSwitch()
-    paint(sw.getAttribute('aria-checked') !== 'true')
-  })
+}
+
+function resetStartGate(root) {
+  if (document.body.classList.contains('is-still') || document.body.classList.contains('is-peek')) return
+  document.body.classList.remove('is-live')
+  if (document.body.classList.contains('is-full')) document.body.classList.add('is-waiting')
+  const btn = root.querySelector('.start')
+  if (btn) {
+    btn.hidden = false
+    btn.textContent = 'Start'
+  }
 }
 
 function bindPrompt(root) {
@@ -194,7 +197,7 @@ function bindStart(root) {
   })
 }
 
-export function boot(slug, mount) {
+export function boot(slug, mounts) {
   const spec = specimenMeta(slug)
   const i = specimens.findIndex((s) => s.slug === slug)
   const params = new URLSearchParams(location.search)
@@ -215,9 +218,53 @@ export function boot(slug, mount) {
     document.body.classList.add('is-waiting')
   }
 
+  const pair = normalizeMounts(mounts)
+  const hasEdit = !!(spec.edit && spec.edit.text)
+  let version = hasEdit ? resolveVersion(slug, { peek, still }) : 'edit'
+  let stop = null
+
+  const play = (v) => {
+    const fn = v === 'original' ? pair.original : pair.edit
+    return fn(app.querySelector('[data-stage]'), { preview: peek, still, peek, version: v })
+  }
+
+  const paintPrompt = (root) => {
+    const pre = root.querySelector('[data-prompt]')
+    if (!pre) return
+    const useEdit = version === 'edit' && spec.edit?.text
+    pre.textContent = useEdit ? spec.edit.text : (spec.prompt ?? '')
+  }
+
+  const paintSwitches = (root) => {
+    const editOn = version === 'edit'
+    root.querySelectorAll('[data-play-switch]').forEach((sw) => {
+      sw.setAttribute('aria-checked', String(editOn))
+      sw.classList.toggle('is-edit', editOn)
+    })
+  }
+
+  const applyVersion = (root, next, { silent = false } = {}) => {
+    if (!hasEdit) return
+    if (next !== 'original' && next !== 'edit') return
+    const changed = next !== version
+    version = next
+    writeStoredVersion(slug, version)
+    if (!peek && !still) setVersionInUrl(version)
+    paintSwitches(root)
+    paintPrompt(root)
+    if (!changed) return
+    if (!silent) sfxSwitch()
+    if (stop) {
+      stop()
+      stop = null
+    }
+    resetStartGate(root)
+    stop = play(version) || null
+  }
+
   if (peek) {
     app.innerHTML = `<div class="stage-frame"><div data-stage></div></div>`
-    mount(app.querySelector('[data-stage]'), { preview: true, still: false, peek: true })
+    play('edit')
     return
   }
 
@@ -239,10 +286,21 @@ export function boot(slug, mount) {
   `
   fillStudio(app)
   bindPrompt(app)
-  bindPromptView(app, spec)
   bindSound(app)
   if (!still) bindStart(app)
-  mount(app.querySelector('[data-stage]'), { preview: peek, still, peek })
+  paintSwitches(app)
+  paintPrompt(app)
+  if (hasEdit && !still) {
+    app.querySelectorAll('[data-play-switch]').forEach((sw) => {
+      sw.addEventListener('click', (e) => {
+        const side = e.target.closest('[data-side]')?.getAttribute('data-side')
+        const next = side === 'original' || side === 'edit' ? side : version === 'edit' ? 'original' : 'edit'
+        applyVersion(app, next)
+      })
+    })
+  }
+  if (hasEdit && !peek && !still) setVersionInUrl(version)
+  stop = play(version) || null
 }
 
 export { fillStudio, withBase, specimens }

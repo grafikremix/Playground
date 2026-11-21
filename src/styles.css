@@ -283,6 +283,7 @@ button, input, select { font: inherit; color: inherit; }
   overflow-wrap: anywhere;
 }
 
+.play-switch,
 .prompt-switch {
   appearance: none;
   border: 0;
@@ -302,6 +303,7 @@ button, input, select { font: inherit; color: inherit; }
   pointer-events: auto;
 }
 
+.play-switch span,
 .prompt-switch span {
   min-height: 44px;
   min-width: 44px;
@@ -316,22 +318,27 @@ button, input, select { font: inherit; color: inherit; }
   color: var(--p-dim);
 }
 
+.play-switch [data-side='original'],
 .prompt-switch [data-side='original'] {
   color: var(--p-hi);
 }
 
+.play-switch [data-side='edit'],
 .prompt-switch [data-side='edit'] {
   color: var(--p-dim);
 }
 
+.play-switch.is-edit [data-side='original'],
 .prompt-switch.is-edit [data-side='original'] {
   color: var(--p-dim);
 }
 
+.play-switch.is-edit [data-side='edit'],
 .prompt-switch.is-edit [data-side='edit'] {
   color: var(--p-hi);
 }
 
+.play-switch:focus-visible,
 .prompt-switch:focus-visible {
   outline: 1px solid var(--p);
   outline-offset: 2px;
@@ -600,7 +607,8 @@ body.is-full .stage-frame [data-stage],
 body.is-full .stage-frame canvas,
 body.is-full .refresh,
 body.is-full .start,
-body.is-full .sound-toggle {
+body.is-full .sound-toggle,
+body.is-full .version-toggle {
   pointer-events: auto;
 }
 
@@ -677,7 +685,8 @@ body.is-full .stage-frame canvas {
   z-index: 0;
 }
 
-body.is-full .sound-toggle {
+body.is-full .sound-toggle,
+body.is-full .version-toggle {
   z-index: 210;
   transform: translateZ(0);
   -webkit-transform: translateZ(0);
@@ -688,6 +697,21 @@ body.is-full .sound-toggle {
   left: max(12px, env(safe-area-inset-left));
   bottom: max(12px, env(safe-area-inset-bottom));
   z-index: 93;
+}
+
+.version-toggle {
+  position: fixed;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  z-index: 93;
+  margin: 0;
+  padding: 0 8px;
+  background: rgba(2, 5, 12, 0.78);
+  box-shadow: 0 0 16px rgba(2, 5, 12, 0.9);
+  text-shadow: 0 1px 2px rgba(2, 5, 12, 0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 2px;
 }
 
 .refresh {
@@ -809,6 +833,7 @@ body.is-still .idea-hud,
 body.is-still .prompt-window,
 body.is-still .prompt-open,
 body.is-still .sound-toggle,
+body.is-still .version-toggle,
 body.is-still .refresh,
 body.is-still .start,
 body.is-still .timer,

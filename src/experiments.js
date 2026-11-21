@@ -1,11 +1,12 @@
 // Catalog. To add an idea:
 // 1. one object here
 // 2. src/specimens/<slug>.js  +  src/pages/<slug>.js  +  specimens/<slug>.html
+//    (an edit also needs src/specimens/<slug>.original.js)
 // 3. npm run stills
 // 4. synthesized Web Audio for each action (unlock on touchstart/touchmove/touchend/pointerup/click until ctx is running; iPhone haptic fallback; honor the HUD sound toggle)
 // 5. every idea is always dark Tron / Ice (techno, electric 80s: neon glow lines, near-black bg, grid/vector feel, synthy sound) regardless of the style the prompt asks for
 // 6. wait for the shared template Start (isLive() in src/lib/play.js). Peek and stills skip it. Runner may show Start again after death.
-// 7. `author` (defaults to Radley). Optional `edit: { text, date, author }` — at most one. Prompt window toggles Original / Edit. Prompt text stays verbatim.
+// 7. `author` (defaults to Radley). Optional `edit: { text, date, author }` — at most one. An edited idea keeps both playable versions behind the HUD Original / Edit switch (and the same switch in the prompt window). Default is Edit. `src/specimens/<slug>.original.js` holds the original mount; the current specimen is the edit. Prompt text stays verbatim.
 //
 // {
 //   slug: 'example',
