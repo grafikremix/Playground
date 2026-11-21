@@ -192,7 +192,12 @@ function createCtx() {
   const AC = window.AudioContext || window.webkitAudioContext
   if (!AC) return null
   setPlaybackSession()
-  ctx = new AC()
+  try {
+    ctx = new AC()
+  } catch {
+    ctx = null
+    return null
+  }
   master = ctx.createGain()
   master.gain.value = enabled && !silent() ? LIVE_GAIN : 0
   comp = ctx.createDynamicsCompressor()
@@ -358,7 +363,7 @@ export function loopNoise({ freq = 420, q = 0.8 } = {}) {
   const len = Math.max(1, Math.floor(a.sampleRate * 0.35))
   const buf = a.createBuffer(1, len, a.sampleRate)
   const data = buf.getChannelData(0)
-  for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1
   const src = a.createBufferSource()
   src.buffer = buf
   src.loop = true

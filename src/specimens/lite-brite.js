@@ -1,6 +1,7 @@
 import { taptic } from '../lib/haptics.js'
 import { unlock, plinkAllowed, tone, voices } from '../lib/audio.js'
 import { isLive } from '../lib/play.js'
+import { fitCanvas, observeFrame } from '../lib/canvas.js'
 
 const reduced =
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -78,13 +79,11 @@ export function mount(stage, { still, peek } = {}) {
   let wanderPrev = null
 
   function layout() {
-    const box = frame.getBoundingClientRect()
-    w = Math.max(1, box.width)
-    h = Math.max(1, box.height)
-    dpr = Math.min(2, window.devicePixelRatio || 1)
-    canvas.width = Math.round(w * dpr)
-    canvas.height = Math.round(h * dpr)
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    const next = fitCanvas(canvas, ctx, frame)
+    if (!next.ok) return
+    w = next.w
+    h = next.h
+    dpr = next.dpr
     const pad = Math.max(10, r)
     cols = Math.max(1, Math.floor((w - pad * 2) / step) + 1)
     rows = Math.max(1, Math.floor((h - pad * 2) / step) + 1)
@@ -244,11 +243,10 @@ export function mount(stage, { still, peek } = {}) {
     raf = requestAnimationFrame(tick)
   }
 
-  const ro = new ResizeObserver(() => {
+  const ro = observeFrame(frame, () => {
     layout()
     if (still) poseStill()
   })
-  ro.observe(frame)
   layout()
   if (still) poseStill()
   last = performance.now()

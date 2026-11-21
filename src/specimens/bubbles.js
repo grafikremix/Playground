@@ -1,6 +1,7 @@
 import { taptic } from '../lib/haptics.js'
 import { unlock, canPlay, getContext, getMaster } from '../lib/audio.js'
 import { isLive } from '../lib/play.js'
+import { fitCanvas, observeFrame } from '../lib/canvas.js'
 
 const COLORS = [
   '#b7ecff',
@@ -191,13 +192,11 @@ export function mount(stage, { still, peek } = {}) {
   const flock = still ? 10 : reduced ? 7 : 12
 
   function resize() {
-    const r = frame.getBoundingClientRect()
-    w = Math.max(1, r.width)
-    h = Math.max(1, r.height)
-    dpr = Math.min(2, window.devicePixelRatio || 1)
-    canvas.width = Math.round(w * dpr)
-    canvas.height = Math.round(h * dpr)
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    const next = fitCanvas(canvas, ctx, frame)
+    if (!next.ok) return
+    w = next.w
+    h = next.h
+    dpr = next.dpr
   }
 
   function spawn(onscreen) {
@@ -524,13 +523,12 @@ export function mount(stage, { still, peek } = {}) {
     raf = requestAnimationFrame(step)
   }
 
-  const ro = new ResizeObserver(() => {
+  const ro = observeFrame(frame, () => {
     resize()
     if (still && bubbles.length === 0) {
       for (let i = 0; i < flock; i++) spawn(true)
     }
   })
-  ro.observe(frame)
   resize()
   if (still) {
     for (let i = 0; i < flock; i++) spawn(true)

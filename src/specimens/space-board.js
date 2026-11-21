@@ -1,6 +1,7 @@
 import { taptic } from '../lib/haptics.js'
 import { unlock, tone, noise, canPlay, getMaster } from '../lib/audio.js'
 import { isLive } from '../lib/play.js'
+import { fitCanvas, observeFrame } from '../lib/canvas.js'
 
 const reduced =
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -127,13 +128,11 @@ export function mount(stage, { still, peek } = {}) {
   }
 
   function layout() {
-    const box = frame.getBoundingClientRect()
-    w = Math.max(1, box.width)
-    h = Math.max(1, box.height)
-    dpr = Math.min(2, window.devicePixelRatio || 1)
-    canvas.width = Math.round(w * dpr)
-    canvas.height = Math.round(h * dpr)
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    const next = fitCanvas(canvas, ctx, frame)
+    if (!next.ok) return
+    w = next.w
+    h = next.h
+    dpr = next.dpr
     u = Math.max(7, Math.min(w, h) / 28)
     if (!specks.length) seedSpecks()
   }
@@ -943,13 +942,12 @@ export function mount(stage, { still, peek } = {}) {
 
   if (!peek && !still) window.addEventListener('playground-start', begin)
 
-  const ro = new ResizeObserver(() => {
+  const ro = observeFrame(frame, () => {
     const was = w
     layout()
     if (still) poseStill()
     else if (phase !== 'play' && Math.abs(was - w) > 1) resetWorld()
   })
-  ro.observe(frame)
   layout()
   resetWorld()
   if (still) poseStill()

@@ -7,6 +7,7 @@ import {
   noise,
 } from '../lib/audio.js'
 import { isLive } from '../lib/play.js'
+import { fitCanvas, observeFrame } from '../lib/canvas.js'
 
 const reduced =
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -60,13 +61,11 @@ export function mount(stage, { still, peek } = {}) {
   let tense = null
 
   function layout() {
-    const box = frame.getBoundingClientRect()
-    w = Math.max(1, box.width)
-    h = Math.max(1, box.height)
-    dpr = Math.min(2, window.devicePixelRatio || 1)
-    canvas.width = Math.round(w * dpr)
-    canvas.height = Math.round(h * dpr)
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    const next = fitCanvas(canvas, ctx, frame)
+    if (!next.ok) return
+    w = next.w
+    h = next.h
+    dpr = next.dpr
     if (!stars.length) seedStars()
     if (!curtains.length) {
       for (let i = 0; i < CURTAINS; i++) curtains.push(makeCurtain(i, false))
@@ -605,8 +604,7 @@ export function mount(stage, { still, peek } = {}) {
     raf = requestAnimationFrame(tick)
   }
 
-  const ro = new ResizeObserver(() => layout())
-  ro.observe(frame)
+  const ro = observeFrame(frame, () => layout())
   layout()
   if (still) poseStill()
   last = performance.now()

@@ -1,6 +1,7 @@
 import { taptic } from '../lib/haptics.js'
 import { unlock, tone, noise } from '../lib/audio.js'
 import { isLive } from '../lib/play.js'
+import { fitCanvas, observeFrame } from '../lib/canvas.js'
 
 const reduced =
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -163,13 +164,11 @@ export function mount(stage, { still, peek } = {}) {
   }
 
   function layout() {
-    const box = frame.getBoundingClientRect()
-    w = Math.max(1, box.width)
-    h = Math.max(1, box.height)
-    dpr = Math.min(2, window.devicePixelRatio || 1)
-    canvas.width = Math.round(w * dpr)
-    canvas.height = Math.round(h * dpr)
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    const next = fitCanvas(canvas, ctx, frame)
+    if (!next.ok) return
+    w = next.w
+    h = next.h
+    dpr = next.dpr
     ctx.imageSmoothingEnabled = false
     const playH = peek ? h * 0.56 : h
     u = Math.max(6.5, Math.min(w, playH) / 34)
@@ -644,13 +643,12 @@ export function mount(stage, { still, peek } = {}) {
     window.addEventListener('keydown', onKey)
   }
 
-  const ro = new ResizeObserver(() => {
+  const ro = observeFrame(frame, () => {
     const was = w
     layout()
     if (still) poseStill()
     else if (phase !== 'play' && Math.abs(was - w) > 1) resetWorld()
   })
-  ro.observe(frame)
   layout()
   resetWorld()
   if (still) poseStill()

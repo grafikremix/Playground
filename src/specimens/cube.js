@@ -5,6 +5,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { taptic } from '../lib/haptics.js'
 import { unlock, canPlay, tone, noise, loopNoise } from '../lib/audio.js'
 import { isLive } from '../lib/play.js'
+import { viewSize, observeFrame } from '../lib/canvas.js'
 
 const reduced =
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -417,9 +418,8 @@ export function mount(stage, { still, peek } = {}) {
   }
 
   function resize() {
-    const r = frame.getBoundingClientRect()
-    const w = Math.max(1, r.width)
-    const h = Math.max(1, r.height)
+    const { w, h } = viewSize(frame)
+    if (w < 2 || h < 2) return
     camera.aspect = w / h
     camera.updateProjectionMatrix()
     const dist = camera.aspect < 0.72 ? 11.6 : camera.aspect < 1.1 ? 9.6 : 8.2
@@ -504,8 +504,7 @@ export function mount(stage, { still, peek } = {}) {
     raf = requestAnimationFrame(step)
   }
 
-  const ro = new ResizeObserver(() => resize())
-  ro.observe(frame)
+  const ro = observeFrame(frame, () => resize())
   build()
   resize()
   last = performance.now()

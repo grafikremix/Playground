@@ -1,6 +1,7 @@
 import { taptic } from '../lib/haptics.js'
 import { unlock, tone, noise, canPlay, getMaster, loopNoise } from '../lib/audio.js'
 import { isLive } from '../lib/play.js'
+import { fitCanvas, clearBacking, watchFrame } from '../lib/canvas.js'
 
 const reduced =
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -38,7 +39,7 @@ function sfxMiss() {
 
 export function mount(stage, { still, peek } = {}) {
   const canvas = document.createElement('canvas')
-  const ctx = canvas.getContext('2d', { alpha: false })
+  const ctx = canvas.getContext('2d')
   stage.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;'
   canvas.style.cssText = peek
     ? 'width:100%;height:100%;display:block;pointer-events:none;touch-action:none;'
@@ -83,16 +84,15 @@ export function mount(stage, { still, peek } = {}) {
   }
 
   function layout() {
-    const box = frame.getBoundingClientRect()
-    w = Math.max(1, box.width)
-    h = Math.max(1, box.height)
-    dpr = Math.min(2, window.devicePixelRatio || 1)
-    canvas.width = Math.round(w * dpr)
-    canvas.height = Math.round(h * dpr)
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    const next = fitCanvas(canvas, ctx, frame)
+    if (!next.ok) return false
+    w = next.w
+    h = next.h
+    dpr = next.dpr
     u = Math.max(7, Math.min(w, h) / 28)
     jet.y = h - u * 3.4
     if (!stars.length) seedStars()
+    return true
   }
 
   function seedStars() {
@@ -714,6 +714,7 @@ export function mount(stage, { still, peek } = {}) {
   }
 
   function draw() {
+    clearBacking(canvas, ctx, dpr)
     drawBg()
     for (const r of rocks) drawRock(r)
     drawSparks()
@@ -746,20 +747,8 @@ export function mount(stage, { still, peek } = {}) {
 
   if (!peek && !still) window.addEventListener('playground-start', begin)
 
-  const ro = new ResizeObserver(() => {
-    const was = w
-    layout()
-    if (still) poseStill()
-    else if (phase !== 'play' && Math.abs(was - w) > 1) resetWorld()
-  })
-  ro.observe(frame)
-  layout()
-  resetWorld()
-  if (still) poseStill()
-  else if (peek) {
-    phase = 'play'
-    spawnT = 0.2
-  } else {
+  function waitingRocks() {
+    if (phase === 'play' || still || peek || rocks.length) return
     const a = makeRock()
     a.y = h * 0.3
     a.vy = 0
@@ -770,12 +759,31 @@ export function mount(stage, { still, peek } = {}) {
     b.vy = 0
     rocks.push(a, b)
   }
+
+  const stopWatch = watchFrame(frame, () => {
+    const was = w
+    if (!layout()) return
+    if (still) poseStill()
+    else if (phase !== 'play' && Math.abs(was - w) > 1) {
+      resetWorld()
+      waitingRocks()
+    }
+  })
+  layout()
+  resetWorld()
+  if (still) poseStill()
+  else if (peek) {
+    phase = 'play'
+    spawnT = 0.2
+  } else {
+    waitingRocks()
+  }
   last = performance.now()
   raf = requestAnimationFrame(tick)
 
   return () => {
     cancelAnimationFrame(raf)
-    ro.disconnect()
+    stopWatch()
     stopMusic()
     stopTurbo()
     canvas.removeEventListener('pointerdown', onDown)
