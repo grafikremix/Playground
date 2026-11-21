@@ -7,8 +7,11 @@ const reduced =
 
 const BEST_KEY = 'playground-space-board-best'
 const MOVE = 12
-const BG = '#e6e1d4'
-const BG_2 = '#d9d3c4'
+const BG = '#02050c'
+const BG_2 = '#071018'
+const ICE = '#b7ecff'
+const NEON_G = '#7dff6a'
+const NEON_M = '#ff4fd8'
 
 function clamp(n, a, b) {
   return Math.max(a, Math.min(b, n))
@@ -63,7 +66,6 @@ export function mount(stage, { still, peek } = {}) {
     ? 'width:100%;height:100%;display:block;pointer-events:none;touch-action:none;'
     : 'width:100%;height:100%;display:block;touch-action:none;cursor:pointer;-webkit-user-select:none;user-select:none;'
   stage.replaceChildren(canvas)
-  if (!peek && !still) document.body.classList.add('idea-space-board')
 
   const frame = stage.closest('.stage-frame') || stage
   let w = 1
@@ -179,7 +181,7 @@ export function mount(stage, { still, peek } = {}) {
       w: bw,
       h: bh,
       grain: 0.35 + Math.random() * 0.5,
-      hue: 28 + Math.random() * 10,
+      hue: Math.random() < 0.45 ? 318 : 28,
       thunked: false,
     }
   }
@@ -214,7 +216,7 @@ export function mount(stage, { still, peek } = {}) {
         r: u * (0.12 + Math.random() * 0.22),
         life: 0.28 + Math.random() * 0.22,
         age: 0,
-        hue: Math.random() < 0.5 ? 128 + Math.random() * 20 : 320 + Math.random() * 40,
+        hue: Math.random() < 0.5 ? 168 + Math.random() * 24 : 300 + Math.random() * 36,
       })
     }
   }
@@ -410,16 +412,38 @@ export function mount(stage, { still, peek } = {}) {
 
   function drawBg() {
     const g = ctx.createLinearGradient(0, 0, 0, h)
-    g.addColorStop(0, '#efeae0')
+    g.addColorStop(0, '#041018')
     g.addColorStop(0.45, BG)
     g.addColorStop(1, BG_2)
     ctx.fillStyle = g
     ctx.fillRect(0, 0, w, h)
+    const gap = u * 2.35
+    const off = ((cam * 0.42) % gap + gap) % gap
+    ctx.save()
+    ctx.strokeStyle = 'rgba(183,236,255,0.08)'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    for (let x = 0; x <= w + 1; x += gap) {
+      ctx.moveTo(x, 0)
+      ctx.lineTo(x, h)
+    }
+    for (let y = -off; y <= h + gap; y += gap) {
+      ctx.moveTo(0, y)
+      ctx.lineTo(w, y)
+    }
+    ctx.stroke()
+    const horizon = h * 0.22
+    ctx.strokeStyle = 'rgba(183,236,255,0.16)'
+    ctx.beginPath()
+    ctx.moveTo(0, horizon)
+    ctx.lineTo(w, horizon)
+    ctx.stroke()
+    ctx.restore()
     for (const s of specks) {
       const y = ((s.y * h * 3 - cam * (0.18 + s.d * 0.35)) % (h + 8)) + 4
       const x = (s.x * w + cam * s.d * 0.02) % w
-      ctx.globalAlpha = 0.22 + 0.32 * s.d
-      ctx.fillStyle = '#b5ab96'
+      ctx.globalAlpha = 0.18 + 0.45 * s.d
+      ctx.fillStyle = ICE
       ctx.fillRect(x, y, s.s, s.s)
     }
     ctx.globalAlpha = 1
@@ -427,31 +451,34 @@ export function mount(stage, { still, peek } = {}) {
 
   function drawBlock(b) {
     const y = worldToScreen(b.y) - b.h
-    const wood = `hsl(${b.hue}, 42%, ${42 + b.grain * 10}%)`
-    const dark = `hsl(${b.hue}, 38%, 28%)`
-    const lite = `hsl(${b.hue + 4}, 36%, 62%)`
+    const neon = b.hue > 200 ? NEON_M : '#ff9a3a'
+    const fill = b.hue > 200 ? 'rgba(48, 8, 36, 0.82)' : 'rgba(42, 18, 4, 0.82)'
     ctx.save()
-    roundRect(b.x + u * 0.08, y + u * 0.1, b.w, b.h, u * 0.18)
-    ctx.fillStyle = 'rgba(70,50,28,0.18)'
+    roundRect(b.x + u * 0.1, y + u * 0.14, b.w, b.h, u * 0.12)
+    ctx.fillStyle = 'rgba(0, 8, 16, 0.45)'
     ctx.fill()
-    roundRect(b.x, y, b.w, b.h, u * 0.18)
-    ctx.fillStyle = wood
+    roundRect(b.x, y, b.w, b.h, u * 0.12)
+    ctx.fillStyle = fill
     ctx.fill()
-    ctx.strokeStyle = dark
-    ctx.lineWidth = Math.max(1, u * 0.08)
+    ctx.shadowColor = neon
+    ctx.shadowBlur = u * 0.55
+    ctx.strokeStyle = neon
+    ctx.lineWidth = Math.max(1.4, u * 0.1)
     ctx.stroke()
+    ctx.shadowBlur = 0
     ctx.beginPath()
     for (let i = 1; i < 5; i++) {
       const yy = y + (b.h * i) / 5
       ctx.moveTo(b.x + u * 0.18, yy)
-      ctx.quadraticCurveTo(b.x + b.w * 0.5, yy + (i % 2 ? 2 : -2), b.x + b.w - u * 0.18, yy)
+      ctx.quadraticCurveTo(b.x + b.w * 0.5, yy + (i % 2 ? 1.5 : -1.5), b.x + b.w - u * 0.18, yy)
     }
-    ctx.strokeStyle = 'rgba(70,48,24,0.28)'
-    ctx.lineWidth = Math.max(1, u * 0.05)
+    ctx.strokeStyle = neon
+    ctx.globalAlpha = 0.28
+    ctx.lineWidth = Math.max(1, u * 0.04)
     ctx.stroke()
-    ctx.fillStyle = lite
-    ctx.globalAlpha = 0.35
-    ctx.fillRect(b.x + u * 0.12, y + u * 0.1, b.w * 0.38, u * 0.16)
+    ctx.globalAlpha = 0.55
+    ctx.fillStyle = neon
+    ctx.fillRect(b.x + u * 0.12, y + u * 0.1, b.w * 0.38, Math.max(1, u * 0.08))
     ctx.globalAlpha = 1
     ctx.restore()
   }
@@ -465,7 +492,7 @@ export function mount(stage, { still, peek } = {}) {
     ctx.translate(x, y)
     ctx.rotate(alien.tilt)
 
-    ctx.fillStyle = 'rgba(70,64,52,0.18)'
+    ctx.fillStyle = 'rgba(183,236,255,0.12)'
     ctx.beginPath()
     ctx.ellipse(0, u * 1.15, u * 1.55, u * 0.28, 0, 0, Math.PI * 2)
     ctx.fill()
@@ -473,27 +500,30 @@ export function mount(stage, { still, peek } = {}) {
     const bw = u * 2.15
     const bh = u * 0.42
     ctx.translate(0, u * 0.72)
-    ctx.fillStyle = '#4d5258'
+    ctx.fillStyle = '#1a1e24'
     ctx.beginPath()
     ctx.ellipse(0, u * 0.12, bw * 0.92, bh * 0.7, 0, 0, Math.PI * 2)
     ctx.fill()
     const board = ctx.createLinearGradient(-bw, 0, bw, bh)
-    board.addColorStop(0, '#c5c9ce')
-    board.addColorStop(0.35, '#9aa0a6')
-    board.addColorStop(0.7, '#6e737a')
-    board.addColorStop(1, '#4a4e55')
+    board.addColorStop(0, '#c5d0d8')
+    board.addColorStop(0.32, '#7a848e')
+    board.addColorStop(0.68, '#3e464e')
+    board.addColorStop(1, '#1c2228')
     ctx.fillStyle = board
     ctx.beginPath()
     ctx.ellipse(0, 0, bw, bh, 0, 0, Math.PI * 2)
     ctx.fill()
-    ctx.strokeStyle = '#3a3e44'
-    ctx.lineWidth = Math.max(1, u * 0.06)
+    ctx.shadowColor = ICE
+    ctx.shadowBlur = u * 0.7
+    ctx.strokeStyle = ICE
+    ctx.lineWidth = Math.max(1.3, u * 0.09)
     ctx.stroke()
-    ctx.fillStyle = 'rgba(255,255,255,0.35)'
+    ctx.shadowBlur = 0
+    ctx.fillStyle = 'rgba(183,236,255,0.28)'
     ctx.beginPath()
     ctx.ellipse(-u * 0.45, -u * 0.08, bw * 0.38, bh * 0.28, -0.2, 0, Math.PI * 2)
     ctx.fill()
-    ctx.fillStyle = '#5c6168'
+    ctx.fillStyle = '#2a323a'
     ctx.beginPath()
     ctx.moveTo(-bw * 0.72, 0)
     ctx.lineTo(-bw * 0.98, u * 0.22)
@@ -506,47 +536,63 @@ export function mount(stage, { still, peek } = {}) {
     ctx.lineTo(bw * 0.55, u * 0.08)
     ctx.closePath()
     ctx.fill()
+    ctx.strokeStyle = ICE
+    ctx.globalAlpha = 0.55
+    ctx.lineWidth = Math.max(1, u * 0.05)
+    ctx.beginPath()
+    ctx.moveTo(-bw * 0.72, 0)
+    ctx.lineTo(-bw * 0.98, u * 0.22)
+    ctx.moveTo(bw * 0.72, 0)
+    ctx.lineTo(bw * 0.98, u * 0.22)
+    ctx.stroke()
+    ctx.globalAlpha = 1
     ctx.translate(0, -u * 0.72)
 
     const body = ctx.createRadialGradient(-u * 0.2, -u * 0.55, u * 0.1, 0, -u * 0.1, u * 1.2)
-    body.addColorStop(0, '#d8f2b0')
-    body.addColorStop(0.45, '#b5dc78')
-    body.addColorStop(1, '#7aaa48')
+    body.addColorStop(0, '#e8ffb0')
+    body.addColorStop(0.4, NEON_G)
+    body.addColorStop(1, '#146628')
+    ctx.shadowColor = NEON_G
+    ctx.shadowBlur = u * 0.85
     ctx.fillStyle = body
     ctx.beginPath()
     ctx.ellipse(0, -u * 0.15, u * 0.82, u * 1.05, 0, 0, Math.PI * 2)
     ctx.fill()
-    ctx.strokeStyle = '#5d8a32'
-    ctx.lineWidth = Math.max(1, u * 0.05)
+    ctx.strokeStyle = NEON_G
+    ctx.lineWidth = Math.max(1.2, u * 0.07)
     ctx.stroke()
+    ctx.shadowBlur = 0
 
-    ctx.strokeStyle = '#7aaa48'
+    ctx.strokeStyle = NEON_G
     ctx.lineWidth = Math.max(1.5, u * 0.1)
     ctx.beginPath()
     ctx.moveTo(-u * 0.12, -u * 1.12)
     ctx.quadraticCurveTo(-u * 0.4, -u * 1.55, -u * 0.22, -u * 1.72)
     ctx.stroke()
-    ctx.fillStyle = '#c5e89a'
+    ctx.fillStyle = '#d8ff9a'
     ctx.beginPath()
     ctx.arc(-u * 0.2, -u * 1.76, u * 0.12, 0, Math.PI * 2)
     ctx.fill()
+    ctx.strokeStyle = NEON_G
+    ctx.lineWidth = Math.max(1, u * 0.05)
+    ctx.stroke()
 
-    ctx.fillStyle = '#1c2414'
+    ctx.fillStyle = '#04140a'
     ctx.beginPath()
     ctx.ellipse(-u * 0.28, -u * 0.42, u * 0.18, u * 0.24, -0.1, 0, Math.PI * 2)
     ctx.ellipse(u * 0.28, -u * 0.42, u * 0.18, u * 0.24, 0.1, 0, Math.PI * 2)
     ctx.fill()
-    ctx.fillStyle = '#f4ffe8'
+    ctx.fillStyle = ICE
     ctx.beginPath()
     ctx.arc(-u * 0.22, -u * 0.5, u * 0.07, 0, Math.PI * 2)
     ctx.arc(u * 0.34, -u * 0.5, u * 0.07, 0, Math.PI * 2)
     ctx.fill()
-    ctx.fillStyle = '#5d8a32'
+    ctx.fillStyle = NEON_G
     ctx.beginPath()
     ctx.ellipse(0, -u * 0.02, u * 0.16, u * 0.1, 0, 0, Math.PI)
     ctx.fill()
 
-    ctx.strokeStyle = '#7aaa48'
+    ctx.strokeStyle = NEON_G
     ctx.lineWidth = Math.max(1.4, u * 0.09)
     ctx.beginPath()
     ctx.moveTo(-u * 0.7, u * 0.15)
@@ -561,11 +607,16 @@ export function mount(stage, { still, peek } = {}) {
     for (const p of puffs) {
       const k = 1 - p.age / p.life
       const y = worldToScreen(p.y)
-      ctx.globalAlpha = 0.25 + 0.7 * k
-      ctx.fillStyle = `hsl(${p.hue}, 70%, 58%)`
+      const col = `hsl(${p.hue}, 100%, 68%)`
+      ctx.save()
+      ctx.globalAlpha = 0.35 + 0.65 * k
+      ctx.shadowColor = col
+      ctx.shadowBlur = u * 0.7
+      ctx.fillStyle = col
       ctx.beginPath()
       ctx.arc(p.x, y, p.r * (0.6 + k), 0, Math.PI * 2)
       ctx.fill()
+      ctx.restore()
     }
     ctx.globalAlpha = 1
   }
@@ -577,10 +628,13 @@ export function mount(stage, { still, peek } = {}) {
     ctx.lineJoin = 'round'
     ctx.miterLimit = 2
     ctx.lineWidth = Math.max(3, u * 0.22)
-    ctx.strokeStyle = '#2a261c'
+    ctx.shadowColor = ICE
+    ctx.shadowBlur = u * 0.45
+    ctx.strokeStyle = '#041018'
     ctx.fillStyle = '#ffffff'
     ctx.strokeText(text, x, y)
     ctx.fillText(text, x, y)
+    ctx.shadowBlur = 0
   }
 
   function drawScores() {
@@ -605,6 +659,9 @@ export function mount(stage, { still, peek } = {}) {
     blocks.push(makeBlock(u * 0.8, alien.y + u * 5.5, u * 5.2, u * 1.5))
     blocks.push(makeBlock(w - u * 6.4, alien.y + u * 11, u * 5.5, u * 1.6))
     blocks.push(makeBlock(u * 1.2, alien.y - u * 6, u * 4.4, u * 1.4))
+    blocks[0].hue = 318
+    blocks[1].hue = 28
+    blocks[2].hue = 318
     splat(alien.x + u * 0.8, alien.y + u * 0.2)
     for (const p of puffs) p.age = p.life * 0.35
   }
@@ -665,6 +722,5 @@ export function mount(stage, { still, peek } = {}) {
     canvas.removeEventListener('pointerup', onUp)
     canvas.removeEventListener('pointercancel', onUp)
     window.removeEventListener('playground-start', begin)
-    document.body.classList.remove('idea-space-board')
   }
 }

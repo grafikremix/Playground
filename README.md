@@ -20,6 +20,6 @@ Every idea has synthesized Web Audio for its actions (no samples). Idea pages sh
 
 GitHub Pages caches HTML for 10 minutes (`max-age=600`). Each build writes `version.json`; pages fetch it `no-store` and reload with a `_b` query if the build id changed, so a stale HTML document picks up the new hashed bundles.
 
-Default visual style for every new idea is techno / electric Tron-style 80s — neon glow lines, dark backgrounds, grid/vector feel, synthy sound — within the Ice theme, unless the prompt explicitly asks otherwise. Existing ideas stay as they are.
+Every idea is always dark Tron / Ice — techno, electric 80s, neon glow lines, near-black backgrounds, grid/vector feel, synthy sound — regardless of the style the prompt asks for.
 
 Animal sounds in `bubbles` are synthesized in the browser (Web Audio). No third-party samples. `cube` is built with three.js.
