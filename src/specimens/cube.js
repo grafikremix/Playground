@@ -3,7 +3,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { taptic } from '../lib/haptics.js'
-import { unlock, tone, noise, loopNoise } from '../lib/audio.js'
+import { unlock, canPlay, tone, noise, loopNoise } from '../lib/audio.js'
 
 const reduced =
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -167,9 +167,14 @@ export function mount(stage, { still, peek } = {}) {
   let whoosh = null
   let prevSpeed = 0
 
-  function ensureWhoosh() {
-    if (whoosh || peek || still) return
+  function ensureWhoosh(fresh = false) {
+    if (peek || still) return
     unlock()
+    if (fresh && whoosh) {
+      whoosh.stop()
+      whoosh = null
+    }
+    if (whoosh || !canPlay()) return
     whoosh = loopNoise({ freq: 380, q: 0.75 })
   }
 
@@ -376,6 +381,8 @@ export function mount(stage, { still, peek } = {}) {
 
   function onUp(e) {
     if (e.pointerId !== pid) return
+    unlock()
+    ensureWhoosh(true)
     const wasDrag = dragging
     dragging = false
     pid = null
@@ -473,6 +480,7 @@ export function mount(stage, { still, peek } = {}) {
       if (t >= 1) restart()
     }
 
+    if (!whoosh && !peek && !still) ensureWhoosh()
     if (whoosh && mode === 'play') {
       const k = Math.min(1, speed / 8.5)
       whoosh.set(k * 0.055, 300 + k * 520)

@@ -1,4 +1,5 @@
 import { taptic } from '../lib/haptics.js'
+import { unlock, canPlay, getContext, getMaster } from '../lib/audio.js'
 
 const COLORS = [
   '#b7ecff',
@@ -41,44 +42,44 @@ function pick(arr) {
   return arr[(Math.random() * arr.length) | 0]
 }
 
-let audio
-let master
-
 function unlockAudio() {
-  if (document.body.classList.contains('is-peek')) return
-  const AC = window.AudioContext || window.webkitAudioContext
-  if (!AC) return
-  if (!audio) {
-    audio = new AC()
-    master = audio.createGain()
-    master.gain.value = 0.2
-    master.connect(audio.destination)
-  }
-  if (audio.state === 'suspended') audio.resume()
+  unlock()
+}
+
+function when() {
+  return getContext()?.currentTime ?? 0
 }
 
 function envGain(duration, peak = 0.9) {
+  const audio = getContext()
+  const bus = getMaster()
+  if (!audio || !bus) return null
   const g = audio.createGain()
   const t = audio.currentTime
   g.gain.setValueAtTime(0.0001, t)
   g.gain.exponentialRampToValueAtTime(peak, t + 0.018)
   g.gain.exponentialRampToValueAtTime(0.0001, t + duration)
-  g.connect(master)
+  g.connect(bus)
   return { g, t }
 }
 
 function osc(type, freq, duration, peak = 0.5) {
+  const audio = getContext()
+  const env = envGain(duration, peak)
+  if (!audio || !env) return null
   const o = audio.createOscillator()
   o.type = type
   o.frequency.setValueAtTime(freq, audio.currentTime)
-  const { g, t } = envGain(duration, peak)
-  o.connect(g)
-  o.start(t)
-  o.stop(t + duration)
+  o.connect(env.g)
+  o.start(env.t)
+  o.stop(env.t + duration)
   return o
 }
 
 function noise(duration, peak, filterFreq, q = 1) {
+  const audio = getContext()
+  const env = envGain(duration, peak)
+  if (!audio || !env) return
   const len = Math.max(1, Math.floor(audio.sampleRate * duration))
   const buf = audio.createBuffer(1, len, audio.sampleRate)
   const data = buf.getChannelData(0)
@@ -89,41 +90,43 @@ function noise(duration, peak, filterFreq, q = 1) {
   f.type = 'bandpass'
   f.frequency.value = filterFreq
   f.Q.value = q
-  const { g, t } = envGain(duration, peak)
   src.connect(f)
-  f.connect(g)
-  src.start(t)
-  src.stop(t + duration)
+  f.connect(env.g)
+  src.start(env.t)
+  src.stop(env.t + duration)
 }
 
 function bark() {
   const o = osc('sawtooth', 180, 0.16, 0.45)
-  o.frequency.exponentialRampToValueAtTime(90, audio.currentTime + 0.14)
+  o?.frequency.exponentialRampToValueAtTime(90, when() + 0.14)
   noise(0.12, 0.35, 900, 0.8)
   setTimeout(() => {
-    if (!audio) return
+    if (!canPlay()) return
     const o2 = osc('sawtooth', 150, 0.12, 0.32)
-    o2.frequency.exponentialRampToValueAtTime(80, audio.currentTime + 0.1)
+    o2?.frequency.exponentialRampToValueAtTime(80, when() + 0.1)
   }, 90)
 }
 
 function meow() {
   const o = osc('triangle', 780, 0.38, 0.4)
-  o.frequency.exponentialRampToValueAtTime(420, audio.currentTime + 0.22)
-  o.frequency.exponentialRampToValueAtTime(640, audio.currentTime + 0.38)
+  o?.frequency.exponentialRampToValueAtTime(420, when() + 0.22)
+  o?.frequency.exponentialRampToValueAtTime(640, when() + 0.38)
 }
 
 function moo() {
   const o = osc('triangle', 130, 0.7, 0.55)
-  o.frequency.exponentialRampToValueAtTime(88, audio.currentTime + 0.7)
+  o?.frequency.exponentialRampToValueAtTime(88, when() + 0.7)
   const o2 = osc('sine', 262, 0.55, 0.12)
-  o2.frequency.exponentialRampToValueAtTime(176, audio.currentTime + 0.55)
+  o2?.frequency.exponentialRampToValueAtTime(176, when() + 0.55)
 }
 
 function neigh() {
+  const audio = getContext()
   const o = osc('sawtooth', 720, 0.55, 0.28)
-  o.frequency.exponentialRampToValueAtTime(240, audio.currentTime + 0.5)
+  if (!audio || !o) return
+  o.frequency.exponentialRampToValueAtTime(240, when() + 0.5)
   const lfo = osc('sine', 18, 0.5, 0.0001)
+  if (!lfo) return
   const g = audio.createGain()
   g.gain.value = 40
   lfo.connect(g)
@@ -133,30 +136,30 @@ function neigh() {
 function roar() {
   noise(0.7, 0.5, 380, 0.6)
   const o = osc('sine', 70, 0.65, 0.4)
-  o.frequency.exponentialRampToValueAtTime(48, audio.currentTime + 0.65)
+  o?.frequency.exponentialRampToValueAtTime(48, when() + 0.65)
 }
 
 function quack() {
   const o = osc('square', 380, 0.12, 0.28)
-  o.frequency.exponentialRampToValueAtTime(260, audio.currentTime + 0.12)
+  o?.frequency.exponentialRampToValueAtTime(260, when() + 0.12)
   setTimeout(() => {
-    if (!audio) return
+    if (!canPlay()) return
     const o2 = osc('square', 360, 0.11, 0.22)
-    o2.frequency.exponentialRampToValueAtTime(240, audio.currentTime + 0.1)
+    o2?.frequency.exponentialRampToValueAtTime(240, when() + 0.1)
   }, 140)
 }
 
 function baa() {
   const o = osc('sawtooth', 320, 0.42, 0.28)
-  o.frequency.exponentialRampToValueAtTime(240, audio.currentTime + 0.2)
-  o.frequency.exponentialRampToValueAtTime(300, audio.currentTime + 0.42)
+  o?.frequency.exponentialRampToValueAtTime(240, when() + 0.2)
+  o?.frequency.exponentialRampToValueAtTime(300, when() + 0.42)
   noise(0.3, 0.2, 700, 1.2)
 }
 
 const VOICES = { dog: bark, cat: meow, cow: moo, horse: neigh, lion: roar, duck: quack, sheep: baa }
 
 function playAnimal(name) {
-  if (!audio) return
+  if (!canPlay()) return
   try {
     VOICES[name]?.()
   } catch {

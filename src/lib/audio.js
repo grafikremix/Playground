@@ -1,51 +1,215 @@
 // Synthesized Web Audio for idea actions. No samples.
-// Unlock on first gesture (iOS). Peek and stills stay silent.
-// Low master + compressor so stacked notes shimmer instead of clip.
+// iOS Safari only unlocks inside a user-activation event (touchend / click /
+// pointerup / keydown). pointerdown and drags do not count. Keep priming until
+// ctx.state === 'running', play a 1-sample buffer, and hold a silent <audio>
+// loop so output rides the media channel (ringer switch). Peek/stills stay quiet.
 
 let ctx
 let master
 let comp
 let live = 0
+let unlocked = false
+let gestured = false
+let priming = false
+let media
+let mediaUrl
 
 const MAX = 14
+const GESTURES = ['touchstart', 'touchend', 'pointerup', 'click', 'keydown']
+const GESTURE_OPTS = { capture: true, passive: true }
 
 export function silent() {
   return document.body.classList.contains('is-peek') || document.body.classList.contains('is-still')
 }
 
-export function unlock() {
-  if (silent()) return null
+export function getContext() {
+  return ctx || null
+}
+
+export function getMaster() {
+  return master || null
+}
+
+function setPlaybackSession() {
+  try {
+    if (navigator.audioSession) navigator.audioSession.type = 'playback'
+  } catch {
+    /* Safari 16.4+ */
+  }
+}
+
+function silentWavUri() {
+  if (mediaUrl) return mediaUrl
+  const rate = 8000
+  const n = 160
+  const bytes = 44 + n
+  const buf = new ArrayBuffer(bytes)
+  const v = new DataView(buf)
+  const ascii = (o, s) => {
+    for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i))
+  }
+  ascii(0, 'RIFF')
+  v.setUint32(4, 36 + n, true)
+  ascii(8, 'WAVE')
+  ascii(12, 'fmt ')
+  v.setUint32(16, 16, true)
+  v.setUint16(20, 1, true)
+  v.setUint16(22, 1, true)
+  v.setUint32(24, rate, true)
+  v.setUint32(28, rate, true)
+  v.setUint16(32, 1, true)
+  v.setUint16(34, 8, true)
+  ascii(36, 'data')
+  v.setUint32(40, n, true)
+  for (let i = 0; i < n; i++) v.setUint8(44 + i, 128)
+  let bin = ''
+  const u8 = new Uint8Array(buf)
+  for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i])
+  mediaUrl = `data:audio/wav;base64,${btoa(bin)}`
+  return mediaUrl
+}
+
+function startSilentMedia() {
+  if (typeof document === 'undefined') return
+  if (!media) {
+    media = document.createElement('audio')
+    media.setAttribute('playsinline', '')
+    media.setAttribute('webkit-playsinline', 'true')
+    media.loop = true
+    media.preload = 'auto'
+    media.controls = false
+    media.volume = 0.01
+    media.src = silentWavUri()
+    media.style.cssText = 'position:fixed;width:0;height:0;opacity:0;pointer-events:none;left:0;top:0'
+    document.body.appendChild(media)
+  }
+  const play = media.play()
+  if (play && play.catch) play.catch(() => {})
+}
+
+function tickSilence(a) {
+  if (!a) return
+  try {
+    const buf = a.createBuffer(1, 1, a.sampleRate)
+    const src = a.createBufferSource()
+    src.buffer = buf
+    const g = a.createGain()
+    g.gain.value = 0
+    src.connect(g)
+    g.connect(a.destination)
+    src.start(0)
+  } catch {
+    /* ignore */
+  }
+}
+
+function onState() {
+  const s = ctx?.state
+  if (s === 'running') {
+    unlocked = true
+    gestured = true
+    stopPriming()
+  } else if (s === 'suspended' || s === 'interrupted') {
+    unlocked = false
+    startPriming()
+  }
+}
+
+function createCtx() {
+  if (ctx) return ctx
   const AC = window.AudioContext || window.webkitAudioContext
   if (!AC) return null
-  if (!ctx) {
-    ctx = new AC()
-    master = ctx.createGain()
-    master.gain.value = 0.16
-    comp = ctx.createDynamicsCompressor()
-    comp.threshold.value = -20
-    comp.knee.value = 10
-    comp.ratio.value = 8
-    comp.attack.value = 0.003
-    comp.release.value = 0.14
-    master.connect(comp)
-    comp.connect(ctx.destination)
-  }
-  if (ctx.state === 'suspended') ctx.resume()
+  setPlaybackSession()
+  ctx = new AC()
+  master = ctx.createGain()
+  master.gain.value = 0.16
+  comp = ctx.createDynamicsCompressor()
+  comp.threshold.value = -20
+  comp.knee.value = 10
+  comp.ratio.value = 8
+  comp.attack.value = 0.003
+  comp.release.value = 0.14
+  master.connect(comp)
+  comp.connect(ctx.destination)
+  ctx.addEventListener('statechange', onState)
   return ctx
 }
 
-function arm() {
+function resumeCtx() {
+  if (!ctx) return
+  setPlaybackSession()
+  startSilentMedia()
+  tickSilence(ctx)
+  const p = ctx.resume?.()
+  if (p && p.then) {
+    p.then(() => {
+      if (ctx?.state === 'running') {
+        unlocked = true
+        stopPriming()
+      }
+    }).catch(() => {})
+  }
+  if (ctx.state === 'running') {
+    unlocked = true
+    stopPriming()
+  }
+}
+
+export function unlock() {
+  if (silent()) return null
+  gestured = true
+  const a = createCtx()
+  if (!a) return null
+  resumeCtx()
+  return ctx
+}
+
+function prime() {
+  if (silent()) return
   unlock()
 }
 
+function startPriming() {
+  if (priming || typeof window === 'undefined') return
+  priming = true
+  for (const ev of GESTURES) {
+    window.addEventListener(ev, prime, GESTURE_OPTS)
+    document.addEventListener(ev, prime, GESTURE_OPTS)
+  }
+}
+
+function stopPriming() {
+  if (!priming || typeof window === 'undefined') return
+  priming = false
+  for (const ev of GESTURES) {
+    window.removeEventListener(ev, prime, GESTURE_OPTS)
+    document.removeEventListener(ev, prime, GESTURE_OPTS)
+  }
+}
+
+function onShow() {
+  if (silent() || !ctx) return
+  setPlaybackSession()
+  startSilentMedia()
+  if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
+    startPriming()
+    resumeCtx()
+  }
+}
+
 if (typeof window !== 'undefined') {
-  window.addEventListener('pointerdown', arm, { capture: true })
-  window.addEventListener('keydown', arm, { capture: true })
-  window.addEventListener('touchstart', arm, { capture: true })
+  startPriming()
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') onShow()
+  })
+  window.addEventListener('pageshow', onShow)
 }
 
 export function canPlay() {
-  return Boolean(ctx && ctx.state === 'running' && !silent())
+  if (!ctx || silent() || ctx.state === 'closed') return false
+  if (ctx.state === 'running') return true
+  if (ctx.state === 'interrupted') return false
+  return gestured
 }
 
 export function audioNow() {

@@ -181,6 +181,7 @@ export function mount(stage, { still, peek } = {}) {
   }
 
   function onUp(e) {
+    unlock()
     lastPt.delete(e.pointerId)
   }
 
