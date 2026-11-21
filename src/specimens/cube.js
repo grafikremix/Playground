@@ -3,6 +3,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { taptic } from '../lib/haptics.js'
+import { unlock, tone, noise, loopNoise } from '../lib/audio.js'
 
 const reduced =
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -163,6 +164,36 @@ export function mount(stage, { still, peek } = {}) {
   let pid = null
   let raf = 0
   let last = performance.now()
+  let whoosh = null
+  let prevSpeed = 0
+
+  function ensureWhoosh() {
+    if (whoosh || peek || still) return
+    unlock()
+    whoosh = loopNoise({ freq: 380, q: 0.75 })
+  }
+
+  function flickWhoosh(sp) {
+    const k = Math.min(1, sp / 8.5)
+    if (k < 0.08) return
+    noise({ duration: 0.22, peak: 0.03 + k * 0.07, freq: 280 + k * 420, q: 0.7, slide: 160 + k * 80, type: 'bandpass' })
+  }
+
+  function settleClick() {
+    tone({ type: 'triangle', freq: 1320, duration: 0.045, peak: 0.07, slide: 980 })
+    noise({ duration: 0.03, peak: 0.04, freq: 2400, q: 1.4, type: 'highpass' })
+  }
+
+  function chime() {
+    tone({ type: 'sine', freq: 784, duration: 0.38, peak: 0.11, slide: 784 })
+    tone({ type: 'sine', freq: 1175, duration: 0.46, peak: 0.08, slide: 1175 })
+    tone({ type: 'triangle', freq: 1568, duration: 0.22, peak: 0.04 })
+  }
+
+  function wrongTap() {
+    tone({ type: 'square', freq: 168, duration: 0.11, peak: 0.06, slide: 92 })
+    noise({ duration: 0.08, peak: 0.05, freq: 220, q: 0.9, type: 'lowpass' })
+  }
   const ray = new THREE.Raycaster()
   const ndc = new THREE.Vector2()
   const look = new THREE.Vector3(0, 0.05, 0)
@@ -251,6 +282,7 @@ export function mount(stage, { still, peek } = {}) {
     angX = 0
     angY = 0
     taptic(18)
+    chime()
     colored.getWorldPosition(winnerWorld)
     const wp = new THREE.Vector3()
     let i = 0
@@ -307,6 +339,8 @@ export function mount(stage, { still, peek } = {}) {
   function onDown(e) {
     if (peek || still || mode !== 'play') return
     if (e.button) return
+    unlock()
+    ensureWhoosh()
     renderer.domElement.setPointerCapture?.(e.pointerId)
     pid = e.pointerId
     dragging = true
@@ -354,6 +388,7 @@ export function mount(stage, { still, peek } = {}) {
       const hits = hitsAt(e)
       const win = hits.find((h) => h.object.userData?.colored)
       if (win) burst()
+      else if (hits.length) wrongTap()
       return
     }
     const cap = reduced ? 4.2 : 9.5
@@ -362,6 +397,7 @@ export function mount(stage, { still, peek } = {}) {
       angX = (angX / sp) * cap
       angY = (angY / sp) * cap
     }
+    flickWhoosh(Math.hypot(angX, angY))
   }
 
   if (!peek) {
@@ -437,6 +473,17 @@ export function mount(stage, { still, peek } = {}) {
       if (t >= 1) restart()
     }
 
+    if (whoosh && mode === 'play') {
+      const k = Math.min(1, speed / 8.5)
+      whoosh.set(k * 0.055, 300 + k * 520)
+    } else if (whoosh) {
+      whoosh.set(0)
+    }
+    if (!dragging && !still && !peek && mode === 'play' && prevSpeed > 0.12 && speed < 0.018) {
+      settleClick()
+    }
+    prevSpeed = speed
+
     const g = still ? 0.42 : Math.min(1, speed / 6.2)
     glowLight.intensity = 0.35 + g * 3.4
     bloom.strength = (peek ? 0.22 : 0.26) + g * 1.05
@@ -473,5 +520,7 @@ export function mount(stage, { still, peek } = {}) {
     edgeMat.dispose()
     haloMat.dispose()
     dustMat.dispose()
+    whoosh?.stop()
+    whoosh = null
   }
 }

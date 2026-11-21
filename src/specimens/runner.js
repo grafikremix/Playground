@@ -1,4 +1,5 @@
 import { taptic } from '../lib/haptics.js'
+import { unlock, tone, noise } from '../lib/audio.js'
 
 const reduced =
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -88,6 +89,53 @@ export function mount(stage, { still, peek } = {}) {
   let peekJump = 0
   let raf = 0
   let last = performance.now()
+  let footT = 0
+  let lastCeil = 60
+  let wasGrounded = true
+
+  function sfxJump() {
+    tone({ type: 'square', freq: 430, duration: 0.11, peak: 0.08, slide: 690 })
+    noise({ duration: 0.07, peak: 0.04, freq: 1200, q: 0.8, type: 'highpass' })
+  }
+
+  function sfxCloud() {
+    noise({ duration: 0.14, peak: 0.055, freq: 780, q: 0.7, type: 'bandpass', slide: 420 })
+    tone({ type: 'sine', freq: 540, duration: 0.1, peak: 0.045, slide: 360 })
+  }
+
+  function sfxStep() {
+    noise({ duration: 0.045, peak: 0.028, freq: 190, q: 0.8, type: 'lowpass' })
+  }
+
+  function sfxPass(kind) {
+    if (kind === 'flyer') {
+      tone({ type: 'triangle', freq: 920, duration: 0.18, peak: 0.055, slide: 480 })
+    } else {
+      tone({ type: 'sawtooth', freq: 140, duration: 0.16, peak: 0.05, slide: 78 })
+      noise({ duration: 0.12, peak: 0.04, freq: 240, q: 0.7, type: 'lowpass' })
+    }
+  }
+
+  function sfxDeath() {
+    tone({ type: 'sawtooth', freq: 220, duration: 0.32, peak: 0.1, slide: 52 })
+    noise({ duration: 0.28, peak: 0.08, freq: 320, q: 0.6, type: 'lowpass', slide: 80 })
+  }
+
+  function sfxStart() {
+    tone({ type: 'sine', freq: 523, duration: 0.12, peak: 0.08 })
+    tone({ type: 'sine', freq: 784, duration: 0.18, peak: 0.07 })
+  }
+
+  function sfxTick(sec) {
+    const freq = 980 + (11 - sec) * 36
+    tone({ type: 'square', freq, duration: 0.05, peak: 0.055 })
+  }
+
+  function sfxSwarm() {
+    noise({ duration: 0.42, peak: 0.07, freq: 180, q: 0.6, type: 'lowpass', slide: 90 })
+    tone({ type: 'sawtooth', freq: 110, duration: 0.38, peak: 0.06, slide: 70 })
+    tone({ type: 'triangle', freq: 165, duration: 0.34, peak: 0.045, slide: 98 })
+  }
 
   const SWARM = [
     { t: 0.15, kind: 'walker' },
@@ -224,16 +272,21 @@ export function mount(stage, { still, peek } = {}) {
   }
 
   function begin() {
+    unlock()
     resetWorld()
     phase = 'play'
+    lastCeil = 60
+    footT = 0
     if (startBtn) startBtn.hidden = true
     if (timerEl) timerEl.textContent = formatTime(clock)
+    sfxStart()
   }
 
   function die() {
     if (phase !== 'play') return
     phase = 'dead'
     taptic(18)
+    sfxDeath()
     if (startBtn) {
       startBtn.hidden = false
       startBtn.textContent = 'Start'
@@ -250,7 +303,10 @@ export function mount(stage, { still, peek } = {}) {
     if (!hero.grounded) return
     hero.vy = -jumpV
     hero.grounded = false
-    if (!peek) taptic(8)
+    if (!peek) {
+      taptic(8)
+      sfxJump()
+    }
   }
 
   function cloudUnder(feetX, feetY) {
@@ -263,6 +319,7 @@ export function mount(stage, { still, peek } = {}) {
   }
 
   function stepHero(dt) {
+    wasGrounded = hero.grounded
     hero.t += dt
     if (phase === 'play' || peek) {
       hero.x += walkSpeed * dt
@@ -286,6 +343,19 @@ export function mount(stage, { still, peek } = {}) {
       if (hero.y < floorY - u) hero.plane = hero.y <= cloudY + u ? 'cloud' : 'air'
     }
 
+    if (!peek && !still && phase === 'play' && !wasGrounded && hero.grounded && hero.plane === 'cloud') {
+      sfxCloud()
+    }
+    if (!peek && !still && phase === 'play' && hero.grounded && hero.plane === 'floor') {
+      footT += dt
+      if (footT > 0.3) {
+        footT = 0
+        sfxStep()
+      }
+    } else {
+      footT = 0.18
+    }
+
     cam = hero.x - w * 0.3
     fillClouds()
   }
@@ -295,6 +365,10 @@ export function mount(stage, { still, peek } = {}) {
       const e = enemies[i]
       e.x += e.vx * dt
       if (e.kind === 'flyer') e.y = cloudY - e.h + u * 0.15 + Math.sin(hero.t * 4 + e.x * 0.01) * u * 0.18
+      if (!e.passed && e.x + e.w < hero.x) {
+        e.passed = true
+        if (!peek && !still && phase === 'play') sfxPass(e.kind)
+      }
       if (e.x + e.w < cam - block * 2) enemies.splice(i, 1)
     }
   }
@@ -516,9 +590,13 @@ export function mount(stage, { still, peek } = {}) {
             if (!swarming && swarmI === 0) {
               swarming = true
               swarmT = 0
+              if (!peek && !still) sfxSwarm()
             }
           }
           if (timerEl) timerEl.textContent = formatTime(clock)
+          const ceil = Math.ceil(clock)
+          if (clock > 0 && ceil <= 10 && ceil >= 1 && ceil !== lastCeil) sfxTick(ceil)
+          lastCeil = ceil
         }
         stepHero(dt)
         stepEnemies(dt)
@@ -536,6 +614,7 @@ export function mount(stage, { still, peek } = {}) {
 
   function onPointer(e) {
     if (e.button) return
+    unlock()
     if (phase === 'play') {
       e.preventDefault()
       jump()

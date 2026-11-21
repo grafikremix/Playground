@@ -1,4 +1,5 @@
 import { taptic } from '../lib/haptics.js'
+import { unlock, plinkAllowed, tone, voices } from '../lib/audio.js'
 
 const reduced =
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -19,7 +20,15 @@ function hsl(h, s, l) {
 
 function candy() {
   const h = Math.random() < 0.18 ? 48 + Math.random() * 12 : Math.random() * 360
-  return hsl(h, 86 + Math.random() * 10, 54 + Math.random() * 10)
+  return { rgb: hsl(h, 86 + Math.random() * 10, 54 + Math.random() * 10), h }
+}
+
+function plink(h) {
+  if (!plinkAllowed(10)) return
+  const freq = 480 * Math.pow(2, (h / 360) * 1.35)
+  const peak = 0.048 * (1 - Math.min(0.65, voices() * 0.1))
+  tone({ type: 'sine', freq, duration: 0.14, peak, slide: freq * 1.06 })
+  tone({ type: 'triangle', freq: freq * 2.01, duration: 0.09, peak: peak * 0.32 })
 }
 
 function rgb(c, k) {
@@ -59,6 +68,7 @@ export function mount(stage, { still, peek } = {}) {
   let oy = 0
   let n = 0
   const colors = []
+  const hues = []
   let light = new Float32Array(0)
   const lastPt = new Map()
   let raf = 0
@@ -80,7 +90,11 @@ export function mount(stage, { still, peek } = {}) {
     ox = (w - (cols - 1) * step) / 2
     oy = (h - (rows - 1) * step) / 2
     n = cols * rows
-    while (colors.length < n) colors.push(candy())
+    while (colors.length < n) {
+      const c = candy()
+      colors.push(c.rgb)
+      hues.push(c.h)
+    }
     if (light.length !== n) {
       const next = new Float32Array(n)
       next.set(light.subarray(0, Math.min(light.length, n)))
@@ -108,7 +122,10 @@ export function mount(stage, { still, peek } = {}) {
     const i = gy * cols + gx
     const was = light[i]
     light[i] = 1
-    if (!peek && !still && was < 0.22) taptic(8)
+    if (!peek && !still && was < 0.22) {
+      taptic(8)
+      plink(hues[i] ?? 180)
+    }
   }
 
   function stamp(x, y) {
@@ -150,6 +167,7 @@ export function mount(stage, { still, peek } = {}) {
 
   function onDown(e) {
     if (e.button) return
+    unlock()
     canvas.setPointerCapture?.(e.pointerId)
     track(e, true)
   }
@@ -158,6 +176,7 @@ export function mount(stage, { still, peek } = {}) {
     const hovering = e.pointerType === 'mouse'
     const dragging = lastPt.has(e.pointerId) || e.buttons
     if (!hovering && !dragging) return
+    unlock()
     track(e, false)
   }
 

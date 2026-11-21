@@ -16,4 +16,6 @@ Or `PLAYGROUND_URL=http://127.0.0.1:4173 npm run stills` against a preview build
 
 Ideas live in `src/experiments.js`. Each entry needs `prompt` (the exact wording, unchanged) and `date` (ISO, `YYYY-MM-DD`). To add one: an entry there, `src/specimens/<slug>.js`, `src/pages/<slug>.js`, `specimens/<slug>.html`, then `npm run stills`.
 
+Every idea has synthesized Web Audio for its actions (no samples). Unlock on the first user gesture so it works on iPhone, where sound is the haptic fallback. Keep it tasteful, low volume, no clipping. Peek and stills stay silent.
+
 Animal sounds in `bubbles` are synthesized in the browser (Web Audio). No third-party samples. `cube` is built with three.js.

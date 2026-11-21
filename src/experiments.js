@@ -2,6 +2,7 @@
 // 1. one object here
 // 2. src/specimens/<slug>.js  +  src/pages/<slug>.js  +  specimens/<slug>.html
 // 3. npm run stills
+// 4. synthesized Web Audio for each action (unlock on first gesture; iPhone haptic fallback)
 //
 // {
 //   slug: 'example',
