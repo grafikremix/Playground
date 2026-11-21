@@ -77,6 +77,18 @@ export const experiments = [
     stillWait: 520,
     crop: { x: 0.5, y: 0.36, z: 1.06 },
   },
+  {
+    slug: 'space-board',
+    title: 'space board',
+    blurb: 'Tap to climb. Swipe to steer.',
+    prompt:
+      'My daughter’s idea. The game is an alien on a space board that is floating and you need to keep pursuing the screen for the alien to keep going up. While it’s going up there are obstacles like a block you need to go around. Like wooden blocks. You can also swipe side to side to make the alien go in any direction. Also if you don’t tap the alien it falls and you die and start over. When you tap the alien you it makes a sound almost like a paint ball noise. There is also a score board to see how far you make it up. Record it’s the highest score as well on the side of the highest score. It should be white letters with a boarder for each one. Okay now the alien is a light green and the ship is grey but make it have dimension. The background is white but not clear white kind of faded. Don’t let me down',
+    date: '2026-11-20',
+    hint: '',
+    full: true,
+    stillWait: 520,
+    crop: { x: 0.5, y: 0.46, z: 1.04 },
+  },
 ]
 
 export const specimens = experiments.map((e, i) => ({

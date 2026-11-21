@@ -773,3 +773,12 @@ body.is-peek::after {
   opacity: 0;
 }
 
+body.idea-space-board::before,
+body.idea-space-board::after {
+  opacity: 0;
+}
+
+body.idea-space-board.is-full .stage-frame {
+  background: #e6e1d4;
+}
+
