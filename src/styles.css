@@ -52,11 +52,15 @@ body {
   touch-action: pan-y;
 }
 
+.crt,
+.crt * {
+  pointer-events: none !important;
+}
+
 .crt {
   position: fixed;
   inset: 0;
   z-index: 400;
-  pointer-events: none;
   overflow: hidden;
 }
 
@@ -64,7 +68,6 @@ body {
 .crt-roll {
   position: absolute;
   inset: 0;
-  pointer-events: none;
 }
 
 .crt-screen {
@@ -986,7 +989,7 @@ body.is-full .prompt-window {
   position: absolute;
   right: max(12px, env(safe-area-inset-right));
   bottom: max(12px, env(safe-area-inset-bottom));
-  z-index: 92;
+  z-index: 95;
   appearance: none;
   margin: 0;
   min-height: 44px;
@@ -1000,6 +1003,9 @@ body.is-full .prompt-window {
   text-transform: uppercase;
   cursor: pointer;
   pointer-events: auto;
+  touch-action: manipulation;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 
 .refresh:focus-visible,
@@ -1028,6 +1034,7 @@ body.is-full .prompt-window {
   text-transform: uppercase;
   cursor: pointer;
   pointer-events: auto;
+  touch-action: manipulation;
   box-shadow: 0 0 18px rgba(183, 236, 255, 0.18);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);

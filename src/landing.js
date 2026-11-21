@@ -31,6 +31,35 @@ const LEDES = [
   'Random ideas, one take each. I prompt once, allow one edit, and let it be. Most are mine. Some are from special guests.',
 ]
 const LEDE_KEY = 'playground-lede-last'
+const INTRO_KEY = 'playground-intro'
+
+function todayStamp() {
+  const d = new Date()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${day}`
+}
+
+function readIntro() {
+  try {
+    const raw = localStorage.getItem(INTRO_KEY)
+    if (!raw) return null
+    const o = JSON.parse(raw)
+    if (o && typeof o.date === 'string' && typeof o.lede === 'string' && o.lede) return o
+  } catch {
+    /* private mode or bad json */
+  }
+  return null
+}
+
+function writeIntro(date, lede) {
+  try {
+    localStorage.setItem(INTRO_KEY, JSON.stringify({ date, lede }))
+    localStorage.setItem(LEDE_KEY, lede)
+  } catch {
+    /* private mode */
+  }
+}
 
 function pickLede() {
   let last = ''
@@ -41,11 +70,6 @@ function pickLede() {
   }
   const pool = LEDES.filter((s) => s !== last)
   const next = (pool.length ? pool : LEDES)[(Math.random() * (pool.length ? pool.length : LEDES.length)) | 0]
-  try {
-    localStorage.setItem(LEDE_KEY, next)
-  } catch {
-    /* private mode */
-  }
   return next
 }
 
@@ -172,10 +196,14 @@ async function playIntro() {
   const ledeOut = document.querySelector('[data-type="lede"]')
   const ledeLine = ledeOut?.parentElement
   const titleLine = titleOut?.parentElement
-  const lede = pickLede()
+  const today = todayStamp()
+  const saved = readIntro()
+  const replay = !(saved && saved.date === today && saved.lede)
+  const lede = replay ? pickLede() : saved.lede
+  if (replay) writeIntro(today, lede)
   paintLede(lede)
 
-  if (!titleOut || !ledeOut || reduced) {
+  if (!titleOut || !ledeOut || reduced || !replay) {
     if (titleOut) titleOut.textContent = TITLE
     if (ledeOut) ledeOut.textContent = lede
     revealTiles()

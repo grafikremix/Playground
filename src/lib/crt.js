@@ -7,6 +7,7 @@ export function mountCrt() {
   const el = document.createElement('div')
   el.className = 'crt'
   el.setAttribute('aria-hidden', 'true')
+  el.style.pointerEvents = 'none'
   el.innerHTML = '<span class="crt-screen"></span><span class="crt-roll"></span>'
   body.appendChild(el)
 }

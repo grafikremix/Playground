@@ -169,7 +169,11 @@ function bindStart(root) {
   const btn = root.querySelector('.start')
   if (!btn) return
   btn.addEventListener('click', () => {
-    unlock()
+    try {
+      unlock()
+    } catch {
+      /* WebKit audio unlock can fail; the gate still has to open */
+    }
     document.body.classList.remove('is-waiting')
     document.body.classList.add('is-live')
     btn.hidden = true

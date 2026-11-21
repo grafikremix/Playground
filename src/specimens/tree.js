@@ -65,19 +65,17 @@ export function mount(stage, { still, peek } = {}) {
     ? 'width:100%;height:100%;display:block;pointer-events:none;touch-action:none;'
     : 'width:100%;height:100%;display:block;touch-action:none;cursor:grab;-webkit-user-select:none;user-select:none;'
 
+  const frame = stage.closest('.stage-frame') || stage
   let resetBtn = null
+  stage.replaceChildren(canvas)
   if (!peek && !still) {
     resetBtn = document.createElement('button')
     resetBtn.type = 'button'
     resetBtn.className = 'refresh'
     resetBtn.textContent = 'New tree'
     resetBtn.addEventListener('click', onReset)
-    stage.replaceChildren(canvas, resetBtn)
-  } else {
-    stage.replaceChildren(canvas)
+    frame.appendChild(resetBtn)
   }
-
-  const frame = stage.closest('.stage-frame') || stage
   let w = 1
   let h = 1
   let dpr = 1
@@ -627,9 +625,16 @@ export function mount(stage, { still, peek } = {}) {
   }
 
   function onDown(e) {
-    if (e.button || peek || still || !live()) return
+    if (peek || still || !live()) return
+    if (e.pointerType !== 'touch' && e.button) return
+    e.preventDefault?.()
     unlock()
     startAmbient()
+    try {
+      if (e.isTrusted) canvas.setPointerCapture?.(e.pointerId)
+    } catch {
+      /* capture optional */
+    }
     const p = ptr(e)
     const hit = nearest(p.x, p.y)
     if (!hit) return
@@ -650,12 +655,17 @@ export function mount(stage, { still, peek } = {}) {
   function onUp(e) {
     if (!grabs.has(e.pointerId)) return
     grabs.delete(e.pointerId)
+    try {
+      if (canvas.hasPointerCapture?.(e.pointerId)) canvas.releasePointerCapture(e.pointerId)
+    } catch {
+      /* already */
+    }
     if (!grabs.size) canvas.style.cursor = 'grab'
     if (!peek && !still) sfxRustle(0.04)
   }
 
   function onReset(e) {
-    e?.preventDefault()
+    e?.preventDefault?.()
     if (!live()) return
     unlock()
     grow(KINDS[(Math.random() * KINDS.length) | 0])
@@ -994,39 +1004,43 @@ export function mount(stage, { still, peek } = {}) {
   function tick(now) {
     const dt = Math.min(0.033, (now - last) / 1000)
     last = now
-    if ((!live() && !peek && !still) || (promptOpen() && !peek && !still)) {
-      syncAudio()
+    try {
+      if ((!live() && !peek && !still) || (promptOpen() && !peek && !still)) {
+        syncAudio()
+        draw()
+        raf = requestAnimationFrame(tick)
+        return
+      }
+      if (!still && (live() || peek)) {
+        t += dt
+        if (peek && !reduced) autoPeek(dt)
+        if (grabs.size) {
+          let strain = 0
+          for (const g of grabs.values()) {
+            if (!g.s.alive) continue
+            strain = Math.max(strain, pull(g.s, g.t, g.x, g.y, dt))
+          }
+          creakT -= dt
+          if (strain > 0.35 && creakT <= 0) {
+            creakT = 0.28
+            if (!peek && !still) sfxCreak()
+          }
+        }
+        stepTree(dt)
+        stepFall(dt)
+        stepWeather(dt)
+        chirpT -= dt
+        if (pal.weather === 'sun' && chirpT <= 0) {
+          chirpT = 1.6 + Math.random() * 1.8
+          ambient?.chirp()
+        }
+        ambient?.setWind(gust)
+        syncAudio()
+      }
       draw()
-      raf = requestAnimationFrame(tick)
-      return
+    } catch {
+      /* keep the loop alive if a frame fails */
     }
-    if (!still && (live() || peek)) {
-      t += dt
-      if (peek && !reduced) autoPeek(dt)
-      if (grabs.size) {
-        let strain = 0
-        for (const g of grabs.values()) {
-          if (!g.s.alive) continue
-          strain = Math.max(strain, pull(g.s, g.t, g.x, g.y, dt))
-        }
-        creakT -= dt
-        if (strain > 0.35 && creakT <= 0) {
-          creakT = 0.28
-          if (!peek && !still) sfxCreak()
-        }
-      }
-      stepTree(dt)
-      stepFall(dt)
-      stepWeather(dt)
-      chirpT -= dt
-      if (pal.weather === 'sun' && chirpT <= 0) {
-        chirpT = 1.6 + Math.random() * 1.8
-        ambient?.chirp()
-      }
-      ambient?.setWind(gust)
-      syncAudio()
-    }
-    draw()
     raf = requestAnimationFrame(tick)
   }
 
@@ -1037,6 +1051,9 @@ export function mount(stage, { still, peek } = {}) {
 
   if (!peek && !still) {
     canvas.addEventListener('pointerdown', onDown)
+    canvas.addEventListener('pointermove', onMove)
+    canvas.addEventListener('pointerup', onUp)
+    canvas.addEventListener('pointercancel', onUp)
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
     window.addEventListener('pointercancel', onUp)
@@ -1049,10 +1066,12 @@ export function mount(stage, { still, peek } = {}) {
   }
 
   const stopWatch = watchFrame(frame, () => {
+    const prevW = w
+    const prevH = h
     const ok = layout()
     if (!ok) return
     if (!segs.length) grow(still ? 'autumn' : randomKind())
-    else {
+    else if (w !== prevW || h !== prevH) {
       scaleLens()
       fitRest()
     }
@@ -1072,10 +1091,14 @@ export function mount(stage, { still, peek } = {}) {
     stopAmbient()
     delete canvas.__scene
     canvas.removeEventListener('pointerdown', onDown)
+    canvas.removeEventListener('pointermove', onMove)
+    canvas.removeEventListener('pointerup', onUp)
+    canvas.removeEventListener('pointercancel', onUp)
     window.removeEventListener('pointermove', onMove)
     window.removeEventListener('pointerup', onUp)
     window.removeEventListener('pointercancel', onUp)
     window.removeEventListener('keydown', onKey)
     resetBtn?.removeEventListener('click', onReset)
+    resetBtn?.remove()
   }
 }
