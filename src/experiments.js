@@ -5,6 +5,7 @@
 // 4. synthesized Web Audio for each action (unlock on touchstart/touchmove/touchend/pointerup/click until ctx is running; iPhone haptic fallback; honor the HUD sound toggle)
 // 5. every idea is always dark Tron / Ice (techno, electric 80s: neon glow lines, near-black bg, grid/vector feel, synthy sound) regardless of the style the prompt asks for
 // 6. wait for the shared template Start (isLive() in src/lib/play.js). Peek and stills skip it. Runner may show Start again after death.
+// 7. optional `edit`: a separate “Dad edit” block under the original prompt. Prompt text stays verbatim.
 //
 // {
 //   slug: 'example',
@@ -83,6 +84,8 @@ export const experiments = [
     blurb: 'Tap to climb. Swipe to steer.',
     prompt:
       'My daughter’s idea. The game is an alien on a space board that is floating and you need to keep pursuing the screen for the alien to keep going up. While it’s going up there are obstacles like a block you need to go around. Like wooden blocks. You can also swipe side to side to make the alien go in any direction. Also if you don’t tap the alien it falls and you die and start over. When you tap the alien you it makes a sound almost like a paint ball noise. There is also a score board to see how far you make it up. Record it’s the highest score as well on the side of the highest score. It should be white letters with a boarder for each one. Okay now the alien is a light green and the ship is grey but make it have dimension. The background is white but not clear white kind of faded. Don’t let me down',
+    edit:
+      'Update theme to match the theme of the website. Also change the gesture interactions for how the ship moves. Tap anywhere on the screen top make the ship move vertically. Swipe left and right to move the ship horizontaly. For the blocks, right now there are no blocks in the middle of the canvas meaning I can start the game, not move the alien and endlessly move straight up forever. Ensure the blocks are scattered that forces the player to move the alien. Lastly start by having only one block on screen. As the player progresses in the game, incrementally add move blocks in view making the game more difficult as the player moves on. Add an additional block for every 300 points scored. As the difficulty raises, ensure there is anyways a path for the player to move vertically thus never creating a ceiling of blocks for the player to not progress. Randomly add star power ups. When the alien obtains the star the alien can temporarily go through the blocks. This power up only lasts 3 seconds. Change the look of the alien to show they have the power!',
     date: '2026-11-20',
     hint: '',
     full: true,

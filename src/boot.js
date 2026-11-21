@@ -40,6 +40,14 @@ function ideaChrome(spec) {
         <h2 class="prompt-title" id="${id}-title">${escapeHtml(spec.title)}</h2>
         <p class="prompt-blurb">${escapeHtml(spec.blurb)}</p>
         <pre class="prompt-text" data-prompt></pre>
+        ${
+          spec.edit
+            ? `<section class="prompt-edit" aria-labelledby="${id}-edit">
+          <h3 class="prompt-edit-title" id="${id}-edit">Dad edit</h3>
+          <pre class="prompt-text" data-prompt-edit></pre>
+        </section>`
+            : ''
+        }
       </div>
       <div class="prompt-foot">
         <span class="idea-id">Idea ${escapeHtml(spec.idea)}</span>
@@ -191,6 +199,8 @@ export function boot(slug, mount) {
   `
   const prompt = app.querySelector('[data-prompt]')
   if (prompt) prompt.textContent = spec.prompt ?? ''
+  const promptEdit = app.querySelector('[data-prompt-edit]')
+  if (promptEdit) promptEdit.textContent = spec.edit ?? ''
   fillStudio(app)
   bindPrompt(app)
   bindSound(app)

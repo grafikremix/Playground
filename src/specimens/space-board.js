@@ -1,5 +1,5 @@
 import { taptic } from '../lib/haptics.js'
-import { unlock, tone, noise } from '../lib/audio.js'
+import { unlock, tone, noise, canPlay, getMaster } from '../lib/audio.js'
 import { isLive } from '../lib/play.js'
 
 const reduced =
@@ -58,6 +58,22 @@ function sfxBest() {
   tone({ type: 'triangle', freq: 1046, duration: 0.16, peak: 0.04 })
 }
 
+function sfxSwipe() {
+  noise({ duration: 0.08, peak: 0.05, freq: 520, q: 0.7, type: 'bandpass', slide: 240 })
+  tone({ type: 'sine', freq: 280, duration: 0.09, peak: 0.04, slide: 160 })
+}
+
+function sfxStar() {
+  tone({ type: 'sine', freq: 660, duration: 0.12, peak: 0.08 })
+  tone({ type: 'triangle', freq: 880, duration: 0.16, peak: 0.07 })
+  tone({ type: 'sine', freq: 1320, duration: 0.2, peak: 0.05 })
+}
+
+function sfxPowerEnd() {
+  tone({ type: 'triangle', freq: 520, duration: 0.14, peak: 0.06, slide: 220 })
+  tone({ type: 'sine', freq: 330, duration: 0.18, peak: 0.05, slide: 140 })
+}
+
 export function mount(stage, { still, peek } = {}) {
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d', { alpha: false })
@@ -75,10 +91,16 @@ export function mount(stage, { still, peek } = {}) {
 
   const alien = { x: 0, y: 0, vx: 0, vy: 0, tilt: 0, maxY: 0 }
   const blocks = []
+  const stars = []
   const specks = []
   const puffs = []
+  const trails = []
   let cam = 0
   let nextRow = 0
+  let gapCenter = 0
+  let lastWanted = 1
+  let power = 0
+  let hum = null
   let phase = 'ready'
   let score = 0
   let best = readBest()
@@ -93,6 +115,7 @@ export function mount(stage, { still, peek } = {}) {
   let lx = 0
   let ly = 0
   let moved = false
+  let swiped = false
   let hitCool = 0
 
   function startEl() {
@@ -129,9 +152,71 @@ export function mount(stage, { still, peek } = {}) {
     }
   }
 
+  function shipW() {
+    return u * 4.3
+  }
+
+  function gapMin() {
+    return shipW() * 1.6
+  }
+
+  function blocksWanted() {
+    return 1 + Math.floor(score / 300)
+  }
+
+  function bandSpacing() {
+    return Math.max(u * 5.4, (h * 0.78) / blocksWanted())
+  }
+
+  function stopHum() {
+    if (!hum) return
+    try {
+      hum.o.stop()
+      hum.o2.stop()
+    } catch {
+      /* already stopped */
+    }
+    try {
+      hum.o.disconnect()
+      hum.o2.disconnect()
+      hum.g.disconnect()
+    } catch {
+      /* already disconnected */
+    }
+    hum = null
+  }
+
+  function startHum() {
+    if (hum || peek || still || !canPlay()) return
+    const a = unlock()
+    const master = getMaster()
+    if (!a || !master) return
+    const o = a.createOscillator()
+    o.type = 'sine'
+    o.frequency.value = 196
+    const o2 = a.createOscillator()
+    o2.type = 'triangle'
+    o2.frequency.value = 392
+    const g = a.createGain()
+    g.gain.value = 0.035
+    o.connect(g)
+    o2.connect(g)
+    g.connect(master)
+    o.start()
+    o2.start()
+    hum = { o, o2, g }
+  }
+
+  function syncHum() {
+    if (power > 0 && !peek && !still && canPlay()) startHum()
+    else stopHum()
+  }
+
   function resetWorld() {
     blocks.length = 0
+    stars.length = 0
     puffs.length = 0
+    trails.length = 0
     alien.x = w * 0.5
     alien.y = h * 0.22
     alien.vx = 0
@@ -139,39 +224,79 @@ export function mount(stage, { still, peek } = {}) {
     alien.tilt = 0
     alien.maxY = alien.y
     cam = 0
-    nextRow = h * 0.55
     score = 0
     chimed = false
     hitCool = 0
+    power = 0
+    lastWanted = 1
+    gapCenter = w * (Math.random() < 0.5 ? 0.22 : 0.78)
+    nextRow = h * 0.5
+    stopHum()
     fillRows()
   }
 
   function fillRows() {
+    const wanted = blocksWanted()
+    if (wanted > lastWanted) {
+      const spacing = bandSpacing()
+      const inject = Math.max(alien.y + u * 5, cam + h * 0.55)
+      if (nextRow > inject + spacing) nextRow = inject + spacing * 0.35
+      lastWanted = wanted
+    }
     const top = cam + h + u * 8
     while (nextRow < top) {
-      spawnRow(nextRow)
-      nextRow += u * (7.4 + Math.random() * 3.2)
+      const inView = blocks.filter((b) => b.y + b.h > cam && b.y < cam + h).length
+      if (nextRow < cam + h - u && inView >= wanted) {
+        nextRow = Math.max(nextRow, cam + h + u * 0.35)
+        continue
+      }
+      spawnBand(nextRow)
+      nextRow += bandSpacing() * (0.88 + Math.random() * 0.24)
     }
     while (blocks.length && blocks[0].y + blocks[0].h < cam - u * 4) blocks.shift()
+    while (stars.length && stars[0].y < cam - u * 4) stars.shift()
   }
 
-  function spawnRow(y) {
-    const gap = u * (4.8 + Math.random() * 2.4)
-    const side = Math.random() < 0.5 ? 'left' : 'right'
-    const bw = u * (3.6 + Math.random() * 4.2)
+  function spawnBand(y) {
+    const pad = u * 0.75
+    const minGap = Math.min(gapMin(), w - pad * 2 - u * 3)
     const bh = u * (1.35 + Math.random() * 0.7)
-    const pad = u * 0.8
+    const maxBw = Math.max(u * 3, w - pad * 2 - minGap)
+    const bw = clamp(u * (3.4 + Math.random() * 3.6), u * 3, maxBw)
+    const flip = Math.random() < 0.58 ? 1 : -1
+    gapCenter += flip * (minGap * 0.35 + Math.random() * w * 0.18)
+    gapCenter = clamp(gapCenter, pad + minGap * 0.5, w - pad - minGap * 0.5)
+    const gL = gapCenter - minGap * 0.5
+    const gR = gapCenter + minGap * 0.5
+    const mid = w * 0.5
+    const leftMax = gL - bw
+    const rightMin = gR
+    const canLeft = leftMax >= pad
+    const canRight = rightMin + bw <= w - pad
+    const leftCoversMid = canLeft && pad <= mid && leftMax + bw >= mid
+    const rightCoversMid = canRight && rightMin <= mid && w - pad >= mid
     let x
-    if (side === 'left') x = pad + Math.random() * Math.max(u, w * 0.42 - bw - gap * 0.2)
-    else x = w - pad - bw - Math.random() * Math.max(u, w * 0.42 - bw)
-    if (Math.random() < 0.28) {
-      const bw2 = u * (2.8 + Math.random() * 2.4)
-      const other = side === 'left' ? w - pad - bw2 : pad
-      if (Math.abs(other + bw2 * 0.5 - (x + bw * 0.5)) > gap + u) {
-        blocks.push(makeBlock(other, y, bw2, bh * (0.85 + Math.random() * 0.3)))
-      }
+    if (leftCoversMid && (!rightCoversMid || Math.random() < 0.5)) {
+      x = clamp(mid - bw * 0.5, pad, leftMax)
+    } else if (rightCoversMid) {
+      x = clamp(mid - bw * 0.5, rightMin, w - pad - bw)
+    } else if (canLeft && (!canRight || Math.abs(gL - mid) <= Math.abs(gR - mid))) {
+      x = pad + Math.random() * Math.max(0, leftMax - pad)
+    } else if (canRight) {
+      x = rightMin + Math.random() * Math.max(0, w - pad - bw - rightMin)
+    } else {
+      x = pad
     }
     blocks.push(makeBlock(x, y, bw, bh))
+    if (stars.length === 0 || Math.random() < 0.28) {
+      stars.push({
+        x: clamp(gapCenter + (Math.random() - 0.5) * minGap * 0.4, pad + u, w - pad - u),
+        y: y + bh + u * (1.1 + Math.random() * 1.8),
+        r: Math.max(11, u * 0.78),
+        spin: Math.random() * Math.PI * 2,
+        taken: false,
+      })
+    }
   }
 
   function makeBlock(x, y, bw, bh) {
@@ -188,10 +313,6 @@ export function mount(stage, { still, peek } = {}) {
 
   function worldToScreen(y) {
     return h - (y - cam)
-  }
-
-  function hitR() {
-    return Math.max(56, u * 3.4)
   }
 
   function alienBox() {
@@ -242,6 +363,8 @@ export function mount(stage, { still, peek } = {}) {
   function die() {
     if (phase !== 'play') return
     phase = 'dead'
+    power = 0
+    stopHum()
     if (!peek && !still) {
       taptic(20)
       sfxDeath()
@@ -254,6 +377,7 @@ export function mount(stage, { still, peek } = {}) {
   }
 
   function collideBlocks(dt) {
+    if (power > 0) return
     const box = alienBox()
     hitCool = Math.max(0, hitCool - dt)
     for (const b of blocks) {
@@ -308,6 +432,7 @@ export function mount(stage, { still, peek } = {}) {
     }
     alien.tilt += (clamp(alien.vx / (u * 22), -0.45, 0.45) - alien.tilt) * Math.min(1, dt * 10)
     if (alien.y > alien.maxY) alien.maxY = alien.y
+    collideStars()
     collideBlocks(dt)
     const follow = cam + h * 0.38
     if (alien.y > follow) cam += alien.y - follow
@@ -320,12 +445,52 @@ export function mount(stage, { still, peek } = {}) {
         sfxBest()
       }
     }
+    if (power > 0) {
+      power = Math.max(0, power - dt)
+      if (Math.random() < 0.65) {
+        trails.push({
+          x: alien.x + (Math.random() - 0.5) * u * 0.8,
+          y: alien.y - u * 0.2,
+          r: u * (0.1 + Math.random() * 0.16),
+          age: 0,
+          life: 0.28 + Math.random() * 0.18,
+        })
+      }
+      if (power <= 0) {
+        power = 0
+        stopHum()
+        if (!peek && !still) sfxPowerEnd()
+      }
+    }
+    syncHum()
     if (alien.y < cam - u * 1.2) {
       if (peek) {
         resetWorld()
         phase = 'play'
         alien.vy = u * 24
       } else die()
+    }
+  }
+
+  function collideStars() {
+    const box = alienBox()
+    const pad = Math.max(22, u * 0.9)
+    for (const s of stars) {
+      if (s.taken) continue
+      const hit = {
+        x: s.x - s.r - pad * 0.15,
+        y: s.y - s.r - pad * 0.15,
+        w: s.r * 2 + pad * 0.3,
+        h: s.r * 2 + pad * 0.3,
+      }
+      if (!overlapping(box, hit)) continue
+      s.taken = true
+      power = 3
+      if (!peek && !still) {
+        taptic(16)
+        sfxStar()
+      }
+      syncHum()
     }
   }
 
@@ -338,6 +503,16 @@ export function mount(stage, { still, peek } = {}) {
       p.vy -= u * 18 * dt
       p.vx *= 0.96
       if (p.age >= p.life) puffs.splice(i, 1)
+    }
+    for (let i = trails.length - 1; i >= 0; i--) {
+      const p = trails[i]
+      p.age += dt
+      p.y -= u * 6 * dt
+      if (p.age >= p.life) trails.splice(i, 1)
+    }
+    for (const s of stars) s.spin += dt * 2.4
+    for (let i = stars.length - 1; i >= 0; i--) {
+      if (stars[i].taken || stars[i].y < cam - u * 4) stars.splice(i, 1)
     }
   }
 
@@ -361,6 +536,7 @@ export function mount(stage, { still, peek } = {}) {
     lx = e.clientX
     ly = e.clientY
     moved = false
+    swiped = false
   }
 
   function onMove(e) {
@@ -370,10 +546,15 @@ export function mount(stage, { still, peek } = {}) {
     if (!moved && Math.hypot(dx, dy) > MOVE) moved = true
     if (moved) {
       const mx = e.clientX - lx
-      const my = e.clientY - ly
       alien.x = clamp(alien.x + mx, u * 1.4, w - u * 1.4)
       alien.vx += mx * 18
-      if (Math.abs(my) > 1) alien.vy += -my * 0.45
+      if (!swiped && Math.abs(dx) > MOVE) {
+        swiped = true
+        if (!peek && !still) {
+          taptic(8)
+          sfxSwipe()
+        }
+      }
     }
     lx = e.clientX
     ly = e.clientY
@@ -383,12 +564,7 @@ export function mount(stage, { still, peek } = {}) {
     if (e.pointerId !== pid) return
     pid = null
     if (phase !== 'play' || promptOpen()) return
-    const box = canvas.getBoundingClientRect()
-    const x = e.clientX - box.left
-    const y = e.clientY - box.top
-    const syA = worldToScreen(alien.y)
-    const dist = Math.hypot(x - alien.x, y - syA)
-    if (!moved && dist <= hitR()) boost()
+    if (!moved) boost()
   }
 
   if (!peek) {
@@ -483,16 +659,72 @@ export function mount(stage, { still, peek } = {}) {
     ctx.restore()
   }
 
+  function powered() {
+    return power > 0
+  }
+
+  function powerFlicker() {
+    return power > 0 && power < 0.75 && Math.sin(t * 32) > 0.15
+  }
+
+  function drawStar(s) {
+    if (s.taken) return
+    const y = worldToScreen(s.y)
+    const r = s.r
+    ctx.save()
+    ctx.translate(s.x, y)
+    ctx.rotate(s.spin)
+    ctx.shadowColor = '#ffe56a'
+    ctx.shadowBlur = u * 0.9
+    ctx.beginPath()
+    for (let i = 0; i < 10; i++) {
+      const a = (i * Math.PI) / 5 - Math.PI / 2
+      const rad = i % 2 === 0 ? r : r * 0.42
+      const px = Math.cos(a) * rad
+      const py = Math.sin(a) * rad
+      if (i === 0) ctx.moveTo(px, py)
+      else ctx.lineTo(px, py)
+    }
+    ctx.closePath()
+    ctx.fillStyle = '#fff6b8'
+    ctx.fill()
+    ctx.strokeStyle = '#ffd24a'
+    ctx.lineWidth = Math.max(1, u * 0.06)
+    ctx.stroke()
+    ctx.restore()
+  }
+
+  function drawTrails() {
+    for (const p of trails) {
+      const k = 1 - p.age / p.life
+      ctx.save()
+      ctx.globalAlpha = 0.25 + 0.7 * k
+      ctx.shadowColor = '#ffe56a'
+      ctx.shadowBlur = u * 0.5
+      ctx.fillStyle = '#fff4c2'
+      ctx.beginPath()
+      ctx.arc(p.x, worldToScreen(p.y), p.r * (0.6 + k), 0, Math.PI * 2)
+      ctx.fill()
+      ctx.restore()
+    }
+  }
+
   function drawAlien() {
     const syA = worldToScreen(alien.y)
     const bob = reduced || still || !isLive() ? 0 : Math.sin(t * 6.2) * u * 0.08
     const x = alien.x
     const y = syA + bob
+    const hot = powered() && !powerFlicker()
+    const bodyHi = hot ? '#fff8e0' : '#e8ffb0'
+    const bodyMid = hot ? '#ffe56a' : NEON_G
+    const bodyLo = hot ? '#c48410' : '#146628'
+    const rim = hot ? '#fff4c2' : NEON_G
     ctx.save()
     ctx.translate(x, y)
     ctx.rotate(alien.tilt)
+    ctx.globalAlpha = powerFlicker() ? 0.42 : 1
 
-    ctx.fillStyle = 'rgba(183,236,255,0.12)'
+    ctx.fillStyle = hot ? 'rgba(255, 229, 106, 0.22)' : 'rgba(183,236,255,0.12)'
     ctx.beginPath()
     ctx.ellipse(0, u * 1.15, u * 1.55, u * 0.28, 0, 0, Math.PI * 2)
     ctx.fill()
@@ -513,9 +745,9 @@ export function mount(stage, { still, peek } = {}) {
     ctx.beginPath()
     ctx.ellipse(0, 0, bw, bh, 0, 0, Math.PI * 2)
     ctx.fill()
-    ctx.shadowColor = ICE
-    ctx.shadowBlur = u * 0.7
-    ctx.strokeStyle = ICE
+    ctx.shadowColor = hot ? '#ffe56a' : ICE
+    ctx.shadowBlur = u * (hot ? 1.1 : 0.7)
+    ctx.strokeStyle = hot ? '#fff4c2' : ICE
     ctx.lineWidth = Math.max(1.3, u * 0.09)
     ctx.stroke()
     ctx.shadowBlur = 0
@@ -549,31 +781,31 @@ export function mount(stage, { still, peek } = {}) {
     ctx.translate(0, -u * 0.72)
 
     const body = ctx.createRadialGradient(-u * 0.2, -u * 0.55, u * 0.1, 0, -u * 0.1, u * 1.2)
-    body.addColorStop(0, '#e8ffb0')
-    body.addColorStop(0.4, NEON_G)
-    body.addColorStop(1, '#146628')
-    ctx.shadowColor = NEON_G
-    ctx.shadowBlur = u * 0.85
+    body.addColorStop(0, bodyHi)
+    body.addColorStop(0.4, bodyMid)
+    body.addColorStop(1, bodyLo)
+    ctx.shadowColor = rim
+    ctx.shadowBlur = u * (hot ? 1.45 : 0.85)
     ctx.fillStyle = body
     ctx.beginPath()
     ctx.ellipse(0, -u * 0.15, u * 0.82, u * 1.05, 0, 0, Math.PI * 2)
     ctx.fill()
-    ctx.strokeStyle = NEON_G
+    ctx.strokeStyle = rim
     ctx.lineWidth = Math.max(1.2, u * 0.07)
     ctx.stroke()
     ctx.shadowBlur = 0
 
-    ctx.strokeStyle = NEON_G
+    ctx.strokeStyle = rim
     ctx.lineWidth = Math.max(1.5, u * 0.1)
     ctx.beginPath()
     ctx.moveTo(-u * 0.12, -u * 1.12)
     ctx.quadraticCurveTo(-u * 0.4, -u * 1.55, -u * 0.22, -u * 1.72)
     ctx.stroke()
-    ctx.fillStyle = '#d8ff9a'
+    ctx.fillStyle = hot ? '#fff8e0' : '#d8ff9a'
     ctx.beginPath()
     ctx.arc(-u * 0.2, -u * 1.76, u * 0.12, 0, Math.PI * 2)
     ctx.fill()
-    ctx.strokeStyle = NEON_G
+    ctx.strokeStyle = rim
     ctx.lineWidth = Math.max(1, u * 0.05)
     ctx.stroke()
 
@@ -582,17 +814,17 @@ export function mount(stage, { still, peek } = {}) {
     ctx.ellipse(-u * 0.28, -u * 0.42, u * 0.18, u * 0.24, -0.1, 0, Math.PI * 2)
     ctx.ellipse(u * 0.28, -u * 0.42, u * 0.18, u * 0.24, 0.1, 0, Math.PI * 2)
     ctx.fill()
-    ctx.fillStyle = ICE
+    ctx.fillStyle = hot ? '#fff8e0' : ICE
     ctx.beginPath()
     ctx.arc(-u * 0.22, -u * 0.5, u * 0.07, 0, Math.PI * 2)
     ctx.arc(u * 0.34, -u * 0.5, u * 0.07, 0, Math.PI * 2)
     ctx.fill()
-    ctx.fillStyle = NEON_G
+    ctx.fillStyle = rim
     ctx.beginPath()
     ctx.ellipse(0, -u * 0.02, u * 0.16, u * 0.1, 0, 0, Math.PI)
     ctx.fill()
 
-    ctx.strokeStyle = NEON_G
+    ctx.strokeStyle = rim
     ctx.lineWidth = Math.max(1.4, u * 0.09)
     ctx.beginPath()
     ctx.moveTo(-u * 0.7, u * 0.15)
@@ -652,16 +884,25 @@ export function mount(stage, { still, peek } = {}) {
     alien.vy = 40
     alien.maxY = u * 240
     cam = alien.y - h * 0.4
-    score = 186
-    best = Math.max(best, 240)
-    nextRow = alien.y + u * 2
+    score = 620
+    best = Math.max(best, 720)
+    nextRow = alien.y + u * 18
+    lastWanted = blocksWanted()
     blocks.length = 0
-    blocks.push(makeBlock(u * 0.8, alien.y + u * 5.5, u * 5.2, u * 1.5))
-    blocks.push(makeBlock(w - u * 6.4, alien.y + u * 11, u * 5.5, u * 1.6))
-    blocks.push(makeBlock(u * 1.2, alien.y - u * 6, u * 4.4, u * 1.4))
+    stars.length = 0
+    blocks.push(makeBlock(w * 0.5 - u * 2.6, alien.y + u * 5.2, u * 5.2, u * 1.5))
+    blocks.push(makeBlock(u * 0.7, alien.y + u * 11.2, u * 4.6, u * 1.45))
+    blocks.push(makeBlock(w - u * 6.2, alien.y - u * 5.6, u * 5.1, u * 1.5))
     blocks[0].hue = 318
     blocks[1].hue = 28
     blocks[2].hue = 318
+    stars.push({
+      x: alien.x + u * 3.2,
+      y: alien.y + u * 1.6,
+      r: Math.max(11, u * 0.82),
+      spin: 0.4,
+      taken: false,
+    })
     splat(alien.x + u * 0.8, alien.y + u * 0.2)
     for (const p of puffs) p.age = p.life * 0.35
   }
@@ -669,9 +910,14 @@ export function mount(stage, { still, peek } = {}) {
   function draw() {
     drawBg()
     for (const b of blocks) drawBlock(b)
+    for (const s of stars) drawStar(s)
     drawPuffs()
+    drawTrails()
     drawAlien()
     drawScores()
+    canvas.dataset.score = String(score)
+    canvas.dataset.power = String(power)
+    canvas.dataset.blocks = String(blocks.filter((b) => b.y + b.h > cam && b.y < cam + h).length)
   }
 
   function tick(now) {
@@ -722,5 +968,6 @@ export function mount(stage, { still, peek } = {}) {
     canvas.removeEventListener('pointerup', onUp)
     canvas.removeEventListener('pointercancel', onUp)
     window.removeEventListener('playground-start', begin)
+    stopHum()
   }
 }

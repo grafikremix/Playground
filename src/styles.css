@@ -304,6 +304,23 @@ button, input, select { font: inherit; color: inherit; }
   overflow-wrap: anywhere;
 }
 
+.prompt-edit {
+  margin: 14px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--p-dim);
+}
+
+.prompt-edit-title {
+  margin: 0 0 8px;
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1.2;
+  color: var(--p-hi);
+}
+
 .chrome {
   position: relative;
   display: flex;
@@ -458,7 +475,7 @@ button, input, select { font: inherit; color: inherit; }
   flex-direction: column;
   width: min(62ch, calc(100vw - 24px));
   max-width: calc(100vw - 24px);
-  max-height: min(70dvh, 520px);
+  max-height: min(76dvh, 600px);
   overflow: hidden;
   padding: 0;
   margin: 0;
