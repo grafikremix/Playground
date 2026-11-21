@@ -3,6 +3,7 @@
 // 2. src/specimens/<slug>.js  +  src/pages/<slug>.js  +  specimens/<slug>.html
 // 3. npm run stills
 // 4. synthesized Web Audio for each action (unlock on touchend/pointerup/click/keydown; iPhone haptic fallback)
+// 5. default look: techno / electric Tron-style 80s (neon glow lines, dark bg, grid/vector feel, synthy sound) within Ice, unless the prompt asks otherwise
 //
 // {
 //   slug: 'example',

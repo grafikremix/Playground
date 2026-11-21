@@ -18,4 +18,6 @@ Ideas live in `src/experiments.js`. Each entry needs `prompt` (the exact wording
 
 Every idea has synthesized Web Audio for its actions (no samples). Unlock on a real user-activation event (`touchend` / `pointerup` / `click` / `keydown`) so it works on iPhone, where sound is the haptic fallback. Keep it tasteful, low volume, no clipping. Peek and stills stay silent.
 
+Default visual style for every new idea is techno / electric Tron-style 80s — neon glow lines, dark backgrounds, grid/vector feel, synthy sound — within the Ice theme, unless the prompt explicitly asks otherwise. Existing ideas stay as they are.
+
 Animal sounds in `bubbles` are synthesized in the browser (Web Audio). No third-party samples. `cube` is built with three.js.
