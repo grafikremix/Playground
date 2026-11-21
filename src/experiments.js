@@ -92,6 +92,18 @@ export const experiments = [
     stillWait: 520,
     crop: { x: 0.5, y: 0.46, z: 1.04 },
   },
+  {
+    slug: 'asteroids',
+    title: 'asteroids',
+    blurb: 'Slide to steer. Blast the rocks.',
+    prompt:
+      'Setting: outer space, futuristic. A jet is shooting at targets coming down from the sky. The jet has turbo sounds and is mainly at the bottom of the screen and can move left to right. The targets are asteroids that fall from the sky. Make it interesting different sizes. Each time the jet successfully shoots a target it makes an explosion sound. When the jet is activated to shoot make a laser come out of the jet in line with the direction it is shooting.  Targets (asteroids) fall slowly, and less at first and as the user successfully hits a target and/or after 20 seconds target moves a little faster. Essentially make the game faster as you progress. Keep a score tally of how many targets are successfully hit at the top right corner. Soundtrack is futuristic and engaging like a battle but make it dramatic.',
+    date: '2026-11-21',
+    hint: '',
+    full: true,
+    stillWait: 520,
+    crop: { x: 0.5, y: 0.5, z: 1.04 },
+  },
 ]
 
 export const specimens = experiments.map((e, i) => ({
