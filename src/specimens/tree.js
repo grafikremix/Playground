@@ -122,6 +122,8 @@ export function mount(stage, { still, peek } = {}) {
   const groundSnow = []
   const trail = []
   const grabs = new Map()
+  const recoils = []
+  let lastTip = null
   let gust = 0
   let t = 0
   let raf = 0
@@ -335,6 +337,8 @@ export function mount(stage, { still, peek } = {}) {
     drain(settled)
     trail.length = 0
     grabs.clear()
+    recoils.length = 0
+    lastTip = null
     kind = kindName
     pal = PAL[kind] || PAL.summer
     lastKind = kind
@@ -438,14 +442,19 @@ export function mount(stage, { still, peek } = {}) {
         const ld = Math.hypot(px - lp.x, py - lp.y) - leaf.size * 1.8
         if (ld < d) d = Math.max(0, ld)
       }
-      const pad = s.role === 'trunk' ? 70 : s.role === 'limb' ? 130 : 100
+      const pad = s.role === 'trunk' ? 70 : s.role === 'limb' ? 150 : 100
       if (d > pad) continue
-      const prefer = s.role === 'limb' ? 22 : s.role === 'branch' ? 12 : s.role === 'trunk' ? 8 : 0
+      const prefer = s.role === 'limb' ? 28 : s.role === 'branch' ? 12 : s.role === 'trunk' ? 8 : 0
       const onWood = hit.d < Math.max(16, s.thick * 2.2) ? 40 : 0
-      const score = d - prefer - onWood
+      const nearTip = hit.t > 0.72 ? 18 : 0
+      const score = d - prefer - onWood - nearTip
       if (score < bestScore) {
         bestScore = score
-        best = { s, t: Math.max(0.2, hit.t), node: hit.t < 0.5 ? s.a : s.b }
+        best = {
+          s,
+          t: Math.max(0.2, hit.t),
+          node: s.role === 'trunk' ? (hit.t < 0.5 ? s.a : s.b) : s.b,
+        }
       }
     }
     return best
@@ -457,38 +466,79 @@ export function mount(stage, { still, peek } = {}) {
     return held
   }
 
+  function drivenSet() {
+    const driven = heldSet()
+    for (const r of recoils) if (r.node) driven.add(r.node)
+    return driven
+  }
+
+  function startRecoil(node) {
+    if (!node || node.pin) return
+    for (let i = recoils.length - 1; i >= 0; i--) {
+      if (recoils[i].node === node) recoils.splice(i, 1)
+    }
+    const omega = 13.2
+    const zeta = 0.1
+    const wd = omega * Math.sqrt(1 - zeta * zeta)
+    let n = node
+    let delay = 0
+    const seen = new Set()
+    for (let hop = 0; hop < 6 && n && !n.pin && !seen.has(n); hop++) {
+      seen.add(n)
+      const x0 = n.x - n.restX
+      const y0 = n.y - n.restY
+      const vx0 = -x0 * 0.85
+      const vy0 = -y0 * 0.85
+      recoils.push({
+        node: n,
+        t: -delay,
+        ax: x0,
+        ay: y0,
+        bx: (vx0 + zeta * omega * x0) / wd,
+        by: (vy0 + zeta * omega * y0) / wd,
+      })
+      const stick = sticks.find((s) => s.alive && s.b === n)
+      if (!stick) break
+      n = stick.a
+      delay += 0.028
+    }
+  }
+
   function stepTree(dt) {
     const held = heldSet()
+    const driven = drivenSet()
     const interacting = held.size > 0
     if (pal.weather === 'wind') gust = 0.65 + Math.sin(t * 0.7) * Math.sin(t * 1.3) * 0.7
     else if (pal.weather === 'breeze') gust = 0.28 + Math.sin(t * 0.9) * 0.18
     else gust = 0.12 + Math.sin(t * 0.55) * 0.08
 
     const g = pal.weather === 'snow' ? 420 : 520
-    const damp = interacting ? 0.999 : 0.991
-    const restK = interacting ? 0 : 0.02
-    const windX = gust * (pal.weather === 'wind' ? 38 : pal.weather === 'breeze' ? 14 : 6)
+    const damp = interacting ? 0.999 : 0.968
+    const spring = interacting ? 0 : 0.032
+    const windX = gust * (pal.weather === 'wind' ? 22 : pal.weather === 'breeze' ? 12 : 5) * (interacting ? 0.25 : 1)
 
     for (const n of nodes) {
-      if (n.pin || n.grab) continue
+      if (n.pin || n.grab || driven.has(n)) continue
       const vx = (n.x - n.px) * damp
       const vy = (n.y - n.py) * damp
-      n.px = n.x
-      n.py = n.y
-      n.x += vx + windX * dt * (n.role === 'trunk' ? 0.15 : 1)
-      n.y += vy + (n.falling ? g : 90) * dt * dt
-      if (!n.falling) {
-        n.x += (n.restX - n.x) * restK
-        n.y += (n.restY - n.y) * restK
+      const ox = n.x
+      const oy = n.y
+      n.x += vx + windX * dt * (n.role === 'trunk' ? 0.12 : 1)
+      n.y += vy + (n.falling ? g : 70) * dt * dt
+      if (!n.falling && spring) {
+        n.x += (n.restX - n.x) * spring
+        n.y += (n.restY - n.y) * spring
       }
-      if (n.y > ground - 2) {
-        n.y = ground - 2
-        n.py = n.y - vy * 0.2
+      n.px = ox
+      n.py = oy
+      if (n.y > ground) {
+        n.y = ground
+        n.py = n.y - vy * 0.35
         if (n.falling) n.px = n.x - vx * 0.4
       }
     }
 
-    const iters = interacting ? 8 : 4
+    const iters = interacting ? 8 : 3
     for (let k = 0; k < iters; k++) {
       for (const s of sticks) {
         if (!s.alive && !s.falling) continue
@@ -498,14 +548,14 @@ export function mount(stage, { still, peek } = {}) {
         let dy = b.y - a.y
         const dist = Math.hypot(dx, dy) || 0.001
         const diff = (dist - s.rest) / dist
-        const stiff = s.falling ? 0.85 : s.stiff
+        const stiff = s.falling ? 0.85 : interacting ? Math.min(0.12, s.stiff) : s.stiff
         const ex = dx * 0.5 * diff * stiff
         const ey = dy * 0.5 * diff * stiff
-        if (!a.pin && !a.grab) {
+        if (!a.pin && !a.grab && !driven.has(a)) {
           a.x += ex
           a.y += ey
         }
-        if (!b.pin && !b.grab) {
+        if (!b.pin && !b.grab && !driven.has(b)) {
           b.x -= ex
           b.y -= ey
         }
@@ -517,6 +567,33 @@ export function mount(stage, { still, peek } = {}) {
         root.px = root.x
         root.py = root.y
       }
+    }
+
+    const omega = 13.2
+    const zeta = 0.1
+    const wd = omega * Math.sqrt(1 - zeta * zeta)
+    const decay = zeta * omega
+    for (let i = recoils.length - 1; i >= 0; i--) {
+      const r = recoils[i]
+      const n = r.node
+      if (!n || n.grab) {
+        recoils.splice(i, 1)
+        continue
+      }
+      r.t += dt
+      if (r.t < 0) continue
+      const env = Math.exp(-decay * r.t)
+      const ct = Math.cos(wd * r.t)
+      const st = Math.sin(wd * r.t)
+      const x = env * (r.ax * ct + r.bx * st)
+      const y = env * (r.ay * ct + r.by * st)
+      const vx = env * ((r.bx * wd - decay * r.ax) * ct + (-r.ax * wd - decay * r.bx) * st)
+      const vy = env * ((r.by * wd - decay * r.ay) * ct + (-r.ay * wd - decay * r.by) * st)
+      n.x = n.restX + x
+      n.y = Math.min(ground, n.restY + y)
+      n.px = n.x - vx * dt
+      n.py = n.y - vy * dt
+      if (env * Math.hypot(r.ax, r.ay) < 2.2 && Math.hypot(vx, vy) < 14) recoils.splice(i, 1)
     }
 
     if (pal.weather === 'wind') shedWind(dt)
@@ -794,7 +871,13 @@ export function mount(stage, { still, peek } = {}) {
     sliceArmed = false
     trail.push({ x: p.x, y: p.y, age: 0 })
     const hit = nearest(p.x, p.y)
-    if (hit) grabs.set(p.id, { s: hit.s, node: hit.node, t: hit.t, x: p.x, y: p.y, committed: false })
+    if (hit) {
+      for (let i = recoils.length - 1; i >= 0; i--) {
+        if (recoils[i].node === hit.node) recoils.splice(i, 1)
+      }
+      lastTip = hit.node
+      grabs.set(p.id, { s: hit.s, node: hit.node, t: hit.t, x: p.x, y: p.y, committed: false })
+    }
     canvas.style.cursor = 'grabbing'
     safe(() => {
       unlock()
@@ -819,13 +902,15 @@ export function mount(stage, { still, peek } = {}) {
       trail.push({ x: p.x, y: p.y, age: 0 })
       if (trail.length > 18) trail.shift()
       if (live() && swipe.speed >= SLICE_SPEED) {
-        sliceArmed = true
-        const g = grabs.get(e.pointerId)
-        if (g && !g.committed) {
-          grabs.delete(e.pointerId)
-          if (g.node) g.node.grab = false
+        const held = grabs.get(e.pointerId)
+        if (!held?.committed) {
+          sliceArmed = true
+          if (held) {
+            grabs.delete(e.pointerId)
+            if (held.node) held.node.grab = false
+          }
+          trySlice(ox, oy, p.x, p.y, swipe.speed)
         }
-        trySlice(ox, oy, p.x, p.y, swipe.speed)
       }
     }
     const g = grabs.get(e.pointerId)
@@ -839,7 +924,7 @@ export function mount(stage, { still, peek } = {}) {
     if (g.committed && g.node && !sliceArmed) {
       g.node.grab = true
       g.node.x = p.x
-      g.node.y = Math.min(ground - 4, p.y)
+      g.node.y = Math.min(ground, p.y)
       canvas.style.cursor = 'grabbing'
     }
   }
@@ -849,10 +934,8 @@ export function mount(stage, { still, peek } = {}) {
     const g = grabs.get(e.pointerId)
     if (g?.node) {
       g.node.grab = false
-      const vx = g.node.x - g.node.px
-      const vy = g.node.y - g.node.py
-      g.node.px = g.node.x - vx * 2.2
-      g.node.py = g.node.y - vy * 2.2
+      lastTip = g.node
+      if (g.committed) startRecoil(g.node)
     }
     grabs.delete(e.pointerId)
     try {
@@ -1186,7 +1269,7 @@ export function mount(stage, { still, peek } = {}) {
             if (!g.node || !g.committed) continue
             g.node.grab = true
             g.node.x = g.x
-            g.node.y = Math.min(ground - 4, g.y)
+            g.node.y = Math.min(ground, g.y)
             strain = Math.max(strain, Math.hypot(g.node.x - g.node.restX, g.node.y - g.node.restY) / treeH)
           }
           creakT -= dt
@@ -1302,15 +1385,19 @@ export function mount(stage, { still, peek } = {}) {
     const g = grabs.size ? [...grabs.values()][0] : null
     const snowY = snow.map((f) => f.y)
     const rainY = rain.map((d) => d.y)
+    const tipNode = g?.node || lastTip || recoils.find((r) => r.node)?.node || sticks.find((st) => st.role === 'limb' && st.alive)?.b
+    const tipSigned = tipNode ? tipNode.y - tipNode.restY : signed
     return {
       kind,
       frames,
       maxBend,
-      signed,
+      signed: tipSigned,
       maxVel,
       role,
       grabCount: grabs.size,
-      grabbed: g?.node ? { role: g.node.role, y: g.node.y, ground: groundY, committed: g.committed } : null,
+      grabbed: g?.node
+        ? { role: g.node.role, y: g.node.y, restY: g.node.restY, ground: groundY, gap: groundY - g.node.y, committed: g.committed }
+        : null,
       falling: falling.length,
       sticks: sticks.filter((s) => s.alive).length,
       cut: sticks.filter((s) => s.falling).length,
@@ -1323,9 +1410,15 @@ export function mount(stage, { still, peek } = {}) {
     }
   }
   canvas.__limbPoint = () => {
-    const s = sticks.find((st) => st.role === 'limb' && st.alive) || sticks.find((st) => st.role === 'branch' && st.alive)
+    let s = null
+    for (const st of sticks) {
+      if (!st.alive || (st.role !== 'limb' && st.role !== 'branch')) continue
+      if (st.role !== 'limb' && s?.role === 'limb') continue
+      if (!s || st.b.y < s.b.y) s = st
+    }
+    if (!s) s = sticks.find((st) => st.alive)
     if (!s) return null
-    return { x: s.a.x + (s.b.x - s.a.x) * 0.72, y: s.a.y + (s.b.y - s.a.y) * 0.72, role: s.role, i: s.i }
+    return { x: s.b.x, y: s.b.y, role: s.role, i: s.i }
   }
   canvas.__twigPoint = () => {
     const s = sticks.find((st) => st.role === 'twig' && st.alive) || sticks.find((st) => st.role === 'branch' && st.alive)
