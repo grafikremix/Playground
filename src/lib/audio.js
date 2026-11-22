@@ -77,7 +77,11 @@ function applyGain() {
     master.gain.cancelScheduledValues(t)
     master.gain.setTargetAtTime(g, t, 0.02)
   } catch {
-    master.gain.value = g
+    try {
+      master.gain.value = g
+    } catch {
+      /* */
+    }
   }
 }
 
@@ -194,52 +198,62 @@ function createCtx() {
   setPlaybackSession()
   try {
     ctx = new AC()
+    master = ctx.createGain()
+    master.gain.value = enabled && !silent() ? LIVE_GAIN : 0
+    comp = ctx.createDynamicsCompressor()
+    comp.threshold.value = -20
+    comp.knee.value = 10
+    comp.ratio.value = 8
+    comp.attack.value = 0.003
+    comp.release.value = 0.14
+    master.connect(comp)
+    comp.connect(ctx.destination)
+    ctx.addEventListener('statechange', onState)
+    return ctx
   } catch {
     ctx = null
+    master = null
+    comp = null
     return null
   }
-  master = ctx.createGain()
-  master.gain.value = enabled && !silent() ? LIVE_GAIN : 0
-  comp = ctx.createDynamicsCompressor()
-  comp.threshold.value = -20
-  comp.knee.value = 10
-  comp.ratio.value = 8
-  comp.attack.value = 0.003
-  comp.release.value = 0.14
-  master.connect(comp)
-  comp.connect(ctx.destination)
-  ctx.addEventListener('statechange', onState)
-  return ctx
 }
 
 function resumeCtx() {
   if (!ctx) return
-  setPlaybackSession()
-  startSilentMedia()
-  tickSilence(ctx)
-  const p = ctx.resume?.()
-  if (p && p.then) {
-    p.then(() => {
-      if (ctx?.state === 'running') {
-        unlocked = true
-        applyGain()
-        stopPriming()
-      }
-    }).catch(() => {})
-  }
-  if (ctx.state === 'running') {
-    unlocked = true
-    applyGain()
-    stopPriming()
+  try {
+    setPlaybackSession()
+    startSilentMedia()
+    tickSilence(ctx)
+    const p = ctx.resume?.()
+    if (p && p.then) {
+      p.then(() => {
+        if (ctx?.state === 'running') {
+          unlocked = true
+          applyGain()
+          stopPriming()
+        }
+      }).catch(() => {})
+    }
+    if (ctx.state === 'running') {
+      unlocked = true
+      applyGain()
+      stopPriming()
+    }
+  } catch {
+    /* iOS AudioContext must never kill the page */
   }
 }
 
 export function unlock() {
-  if (silent()) return null
-  const a = createCtx()
-  if (!a) return null
-  resumeCtx()
-  return ctx
+  try {
+    if (silent()) return null
+    const a = createCtx()
+    if (!a) return null
+    resumeCtx()
+    return ctx
+  } catch {
+    return null
+  }
 }
 
 function prime() {
@@ -323,77 +337,102 @@ export function envGain(duration, peak) {
 }
 
 export function tone({ type = 'sine', freq = 440, duration = 0.16, peak = 0.12, slide } = {}) {
-  const e = envGain(duration, peak)
-  if (!e) return null
-  const o = e.ctx.createOscillator()
-  o.type = type
-  o.frequency.setValueAtTime(Math.max(20, freq), e.t)
-  if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(20, slide), e.t + duration * 0.92)
-  o.connect(e.g)
-  o.start(e.t)
-  o.stop(e.t + duration)
-  return o
+  try {
+    const e = envGain(duration, peak)
+    if (!e) return null
+    const o = e.ctx.createOscillator()
+    o.type = type
+    o.frequency.setValueAtTime(Math.max(20, freq), e.t)
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(20, slide), e.t + duration * 0.92)
+    o.connect(e.g)
+    o.start(e.t)
+    o.stop(e.t + duration)
+    return o
+  } catch {
+    return null
+  }
 }
 
 export function noise({ duration = 0.18, peak = 0.1, freq = 800, q = 1, type = 'bandpass', slide } = {}) {
-  const e = envGain(duration, peak)
-  if (!e) return null
-  const a = e.ctx
-  const len = Math.max(1, Math.floor(a.sampleRate * duration))
-  const buf = a.createBuffer(1, len, a.sampleRate)
-  const data = buf.getChannelData(0)
-  for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1
-  const src = a.createBufferSource()
-  src.buffer = buf
-  const f = a.createBiquadFilter()
-  f.type = type
-  f.frequency.setValueAtTime(freq, e.t)
-  if (slide) f.frequency.exponentialRampToValueAtTime(Math.max(40, slide), e.t + duration * 0.9)
-  f.Q.value = q
-  src.connect(f)
-  f.connect(e.g)
-  src.start(e.t)
-  src.stop(e.t + duration)
-  return src
+  try {
+    const e = envGain(duration, peak)
+    if (!e) return null
+    const a = e.ctx
+    const len = Math.max(1, Math.floor(a.sampleRate * duration))
+    const buf = a.createBuffer(1, len, a.sampleRate)
+    const data = buf.getChannelData(0)
+    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1
+    const src = a.createBufferSource()
+    src.buffer = buf
+    const f = a.createBiquadFilter()
+    f.type = type
+    f.frequency.setValueAtTime(freq, e.t)
+    if (slide) f.frequency.exponentialRampToValueAtTime(Math.max(40, slide), e.t + duration * 0.9)
+    f.Q.value = q
+    src.connect(f)
+    f.connect(e.g)
+    src.start(e.t)
+    src.stop(e.t + duration)
+    return src
+  } catch {
+    return null
+  }
 }
 
 export function loopNoise({ freq = 420, q = 0.8 } = {}) {
-  const a = unlock()
+  let a
+  try {
+    a = unlock()
+  } catch {
+    return null
+  }
   if (!a || silent() || !canPlay() || !master) return null
-  const len = Math.max(1, Math.floor(a.sampleRate * 0.35))
-  const buf = a.createBuffer(1, len, a.sampleRate)
-  const data = buf.getChannelData(0)
-  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1
-  const src = a.createBufferSource()
-  src.buffer = buf
-  src.loop = true
-  const f = a.createBiquadFilter()
-  f.type = 'bandpass'
-  f.frequency.value = freq
-  f.Q.value = q
-  const g = a.createGain()
-  g.gain.value = 0
-  src.connect(f)
-  f.connect(g)
-  g.connect(master)
-  src.start()
-  return {
-    set(gain, hz) {
-      if (!ctx) return
-      const t = ctx.currentTime
-      g.gain.setTargetAtTime(Math.max(0, gain), t, 0.05)
-      if (hz) f.frequency.setTargetAtTime(hz, t, 0.08)
-    },
-    stop() {
-      try {
-        src.stop()
-      } catch {
-        /* already stopped */
-      }
-      src.disconnect()
-      f.disconnect()
-      g.disconnect()
-    },
+  try {
+    const len = Math.max(1, Math.floor(a.sampleRate * 0.35))
+    const buf = a.createBuffer(1, len, a.sampleRate)
+    const data = buf.getChannelData(0)
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1
+    const src = a.createBufferSource()
+    src.buffer = buf
+    src.loop = true
+    const f = a.createBiquadFilter()
+    f.type = 'bandpass'
+    f.frequency.value = freq
+    f.Q.value = q
+    const g = a.createGain()
+    g.gain.value = 0
+    src.connect(f)
+    f.connect(g)
+    g.connect(master)
+    src.start()
+    return {
+      set(gain, hz) {
+        try {
+          if (!ctx) return
+          const t = ctx.currentTime
+          if (gain != null) g.gain.setTargetAtTime(Math.max(0, gain), t, 0.05)
+          if (hz) f.frequency.setTargetAtTime(hz, t, 0.08)
+        } catch {
+          /* audio optional */
+        }
+      },
+      stop() {
+        try {
+          src.stop()
+        } catch {
+          /* already stopped */
+        }
+        try {
+          src.disconnect()
+          f.disconnect()
+          g.disconnect()
+        } catch {
+          /* already */
+        }
+      },
+    }
+  } catch {
+    return null
   }
 }
 

@@ -1,6 +1,6 @@
 import { taptic } from '../lib/haptics.js'
 import { unlock, tone, noise, canPlay, getMaster } from '../lib/audio.js'
-import { isLive } from '../lib/play.js'
+import { isLive, showScoreHud } from '../lib/play.js'
 import { fitCanvas, clearBacking, watchFrame } from '../lib/canvas.js'
 
 const reduced =
@@ -885,6 +885,7 @@ export function mount(stage, { still, peek } = {}) {
   }
 
   function drawScores() {
+    if (!showScoreHud({ peek, still })) return
     const y = Math.max(86, u * 3.15)
     const pad = Math.max(14, u * 0.9)
     ctx.save()

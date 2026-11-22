@@ -11,17 +11,19 @@ const GOLD = '#ffe08a'
 const ORANGE = '#ff9a3a'
 const BG = '#02050c'
 const FALL_MAX = 96
-const SETTLED_MAX = 80
-const RAIN_N = 36
-const SNOW_N = 42
+const SETTLED_MAX = 90
+const RAIN_N = 42
+const SNOW_N = 56
+const SLICE_SPEED = 1.15
+const GRAB_SPEED = 0.62
 const KINDS = ['spring', 'summer', 'autumn', 'winter', 'pine']
 
 const PAL = {
-  spring: { wood: ICE, leaf: '#c8ffb0', leaf2: '#8dff9a', shed: 0.22, pine: false, weather: 'rain' },
-  summer: { wood: '#9ee4f6', leaf: '#5ee87a', leaf2: '#c4ff6a', shed: 0.12, pine: false, weather: 'sun' },
-  autumn: { wood: '#ffc07a', leaf: ORANGE, leaf2: GOLD, shed: 0.92, pine: false, weather: 'wind' },
-  winter: { wood: '#8fb6cc', leaf: '#e7f8ff', leaf2: ICE, shed: 0.7, pine: false, weather: 'snow' },
-  pine: { wood: '#7fb6cc', leaf: '#7dffea', leaf2: ICE, shed: 0.58, pine: true, weather: 'snow' },
+  spring: { wood: ICE, leaf: '#c8ffb0', leaf2: '#8dff9a', pine: false, weather: 'rain' },
+  summer: { wood: '#9ee4f6', leaf: '#5ee87a', leaf2: '#c4ff6a', pine: false, weather: 'breeze' },
+  autumn: { wood: '#ffc07a', leaf: ORANGE, leaf2: GOLD, pine: false, weather: 'wind' },
+  winter: { wood: '#8fb6cc', leaf: '#e7f8ff', leaf2: ICE, pine: false, weather: 'snow' },
+  pine: { wood: '#7fb6cc', leaf: '#7dffea', leaf2: ICE, pine: true, weather: 'snow' },
 }
 
 function distSeg(px, py, ax, ay, bx, by) {
@@ -30,40 +32,60 @@ function distSeg(px, py, ax, ay, bx, by) {
   const l2 = dx * dx + dy * dy || 1
   let t = ((px - ax) * dx + (py - ay) * dy) / l2
   t = Math.max(0, Math.min(1, t))
-  const x = ax + dx * t
-  const y = ay + dy * t
-  return { t, x, y, d: Math.hypot(px - x, py - y) }
+  return { t, x: ax + dx * t, y: ay + dy * t, d: Math.hypot(px - (ax + dx * t), py - (ay + dy * t)) }
+}
+
+function segCross(ax, ay, bx, by, cx, cy, dx, dy) {
+  const den = (ax - bx) * (cy - dy) - (ay - by) * (cx - dx)
+  if (Math.abs(den) < 1e-6) return null
+  const t = ((ax - cx) * (cy - dy) - (ay - cy) * (cx - dx)) / den
+  const u = ((ax - cx) * (ay - by) - (ay - cy) * (ax - bx)) / den
+  if (t < 0 || t > 1 || u < 0 || u > 1) return null
+  return { x: ax + t * (bx - ax), y: ay + t * (by - ay), t, u }
+}
+
+function safe(fn) {
+  try {
+    return fn()
+  } catch {
+    return null
+  }
 }
 
 function sfxRustle(amp = 0.05) {
-  noise({ duration: 0.09, peak: Math.min(0.08, amp), freq: 920, q: 0.7, type: 'bandpass', slide: 420 })
+  safe(() => noise({ duration: 0.09, peak: Math.min(0.08, amp), freq: 920, q: 0.7, type: 'bandpass', slide: 420 }))
 }
 
 function sfxCreak() {
-  tone({ type: 'sawtooth', freq: 70 + Math.random() * 30, duration: 0.16, peak: 0.045, slide: 48 })
+  safe(() => tone({ type: 'sawtooth', freq: 70 + Math.random() * 30, duration: 0.16, peak: 0.045, slide: 48 }))
 }
 
 function sfxSnap() {
-  noise({ duration: 0.12, peak: 0.1, freq: 1800, q: 0.8, type: 'highpass', slide: 700 })
-  tone({ type: 'triangle', freq: 220, duration: 0.14, peak: 0.06, slide: 90 })
+  safe(() => noise({ duration: 0.12, peak: 0.1, freq: 1800, q: 0.8, type: 'highpass', slide: 700 }))
+  safe(() => tone({ type: 'triangle', freq: 220, duration: 0.14, peak: 0.06, slide: 90 }))
+}
+
+function sfxSlice() {
+  safe(() => noise({ duration: 0.08, peak: 0.09, freq: 2400, q: 0.6, type: 'highpass', slide: 900 }))
+  safe(() => tone({ type: 'sine', freq: 1480, duration: 0.07, peak: 0.05, slide: 420 }))
 }
 
 function sfxLand() {
-  tone({ type: 'sine', freq: 240 + Math.random() * 80, duration: 0.04, peak: 0.02 })
+  safe(() => tone({ type: 'sine', freq: 240 + Math.random() * 80, duration: 0.04, peak: 0.02 }))
 }
 
 function sfxReset() {
-  noise({ duration: 0.18, peak: 0.05, freq: 640, q: 0.7, type: 'bandpass', slide: 280 })
-  tone({ type: 'sine', freq: 392, duration: 0.16, peak: 0.05, slide: 523 })
+  safe(() => noise({ duration: 0.18, peak: 0.05, freq: 640, q: 0.7, type: 'bandpass', slide: 280 }))
+  safe(() => tone({ type: 'sine', freq: 392, duration: 0.16, peak: 0.05, slide: 523 }))
 }
 
 export function mount(stage, { still, peek } = {}) {
   const canvas = document.createElement('canvas')
-  const ctx = canvas.getContext('2d', { alpha: false })
-  stage.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;'
+  const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true }) || canvas.getContext('2d', { alpha: false })
+  stage.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;'
   canvas.style.cssText = peek
     ? 'width:100%;height:100%;display:block;pointer-events:none;touch-action:none;'
-    : 'width:100%;height:100%;display:block;touch-action:none;cursor:grab;-webkit-user-select:none;user-select:none;'
+    : 'width:100%;height:100%;display:block;pointer-events:none;touch-action:none;cursor:grab;-webkit-user-select:none;user-select:none;position:relative;z-index:0;'
 
   const frame = stage.closest('.stage-frame') || stage
   let resetBtn = null
@@ -74,8 +96,10 @@ export function mount(stage, { still, peek } = {}) {
     resetBtn.className = 'refresh'
     resetBtn.textContent = 'New tree'
     resetBtn.addEventListener('click', onReset)
+    resetBtn.addEventListener('pointerdown', (e) => e.stopPropagation())
     frame.appendChild(resetBtn)
   }
+
   let w = 1
   let h = 1
   let dpr = 1
@@ -85,22 +109,31 @@ export function mount(stage, { still, peek } = {}) {
   let treeH = 1
   let kind = 'summer'
   let pal = PAL.summer
-  const segs = []
+  let seed = 1
+  let lastKind = null
+  const nodes = []
+  const sticks = []
   const falling = []
   const settled = []
   const pool = []
   const rain = []
   const snow = []
+  const puddles = []
+  const groundSnow = []
+  const trail = []
   const grabs = new Map()
   let gust = 0
   let t = 0
   let raf = 0
+  let frames = 0
   let last = performance.now()
   let creakT = 0
   let peekT = 0
   let peekDir = 1
   let ambient = null
   let chirpT = 0
+  let sliceArmed = false
+  const swipe = { x: 0, y: 0, px: 0, py: 0, sx: 0, sy: 0, pt: 0, speed: 0, active: false }
 
   function promptOpen() {
     return document.body.classList.contains('is-prompt')
@@ -108,6 +141,11 @@ export function mount(stage, { still, peek } = {}) {
 
   function live() {
     return isLive() && !promptOpen()
+  }
+
+  function syncHits() {
+    const on = !peek && !still && live()
+    canvas.style.pointerEvents = on ? 'auto' : 'none'
   }
 
   function layout() {
@@ -119,7 +157,7 @@ export function mount(stage, { still, peek } = {}) {
     u = Math.max(7, Math.min(w, h) / 28)
     ground = h * 0.88
     sky = peek || still ? Math.max(8, h * 0.05) : Math.max(64, h * 0.1)
-    treeH = Math.max(80, (ground - sky) * 0.8)
+    treeH = Math.max(80, (ground - sky) * 0.82)
     return true
   }
 
@@ -134,6 +172,8 @@ export function mount(stage, { still, peek } = {}) {
         rv: 0,
         pine: false,
         wood: false,
+        snow: false,
+        rain: false,
         len: 0,
         thick: 0,
         size: 0,
@@ -146,6 +186,9 @@ export function mount(stage, { still, peek } = {}) {
 
   function freeBit(p) {
     p.sleep = false
+    p.wood = false
+    p.snow = false
+    p.rain = false
     pool.push(p)
   }
 
@@ -153,161 +196,205 @@ export function mount(stage, { still, peek } = {}) {
     while (list.length) freeBit(list.pop())
   }
 
-  function addSeg(parent, rest, lenN, thick, role, k, brk) {
-    const s = {
-      i: segs.length,
-      p: parent ? parent.i : -1,
-      kids: [],
-      rest,
-      angle: rest,
-      angVel: 0,
-      lenN,
-      len: lenN,
-      thick,
+  function spawnFall(x, y, vx, vy, opts = {}) {
+    if (falling.length >= FALL_MAX) freeBit(falling.shift())
+    const p = takeBit()
+    p.x = x
+    p.y = y
+    p.vx = vx
+    p.vy = vy
+    p.rot = Math.random() * Math.PI
+    p.rv = (Math.random() - 0.5) * 8
+    p.pine = !!opts.pine
+    p.wood = !!opts.wood
+    p.snow = !!opts.snow
+    p.rain = !!opts.rain
+    p.len = opts.len || 0
+    p.thick = opts.thick || 0
+    p.size = opts.size || u * 0.14
+    p.age = 0
+    p.sleep = false
+    p.hue = opts.hue || pal.leaf
+    falling.push(p)
+    return p
+  }
+
+  function addNode(x, y, role, pin = false) {
+    const n = {
+      i: nodes.length,
+      x,
+      y,
+      px: x,
+      py: y,
+      restX: x,
+      restY: y,
+      pin,
+      falling: false,
       role,
-      k,
-      damp: Math.sqrt(k) * 0.28,
-      brk,
-      alive: true,
-      x: 0,
-      y: 0,
-      tx: 0,
-      ty: 0,
-      wa: 0,
-      leaves: [],
-      snow: pal.weather === 'snow' ? 0.35 + Math.random() * 0.65 : 0,
+      grab: false,
     }
-    segs.push(s)
-    if (parent) parent.kids.push(s.i)
+    nodes.push(n)
+    return n
+  }
+
+  function addStick(a, b, role, thick) {
+    const s = {
+      i: sticks.length,
+      a,
+      b,
+      rest: Math.hypot(b.x - a.x, b.y - a.y) || 8,
+      stiff: role === 'trunk' ? 0.42 : role === 'limb' ? 0.22 : role === 'branch' ? 0.16 : 0.12,
+      role,
+      thick,
+      alive: true,
+      falling: false,
+      leaves: [],
+      snow: pal.weather === 'snow' ? 0.4 + Math.random() * 0.6 : 0,
+      parent: -1,
+      kids: [],
+    }
+    sticks.push(s)
     return s
   }
 
   function leafN(depth) {
     if (pal.pine) {
-      if (depth < 2) return 4
-      if (depth === 2) return 10
-      if (depth === 3) return 12
-      return 11
+      if (depth < 2) return 2
+      if (depth === 2) return 6
+      return 7
     }
     const winter = kind === 'winter'
     if (depth < 2) return winter ? 0 : 2
-    if (depth === 2) return winter ? 2 : 6
-    if (depth === 3) return winter ? 2 : 7
-    return winter ? 2 : 5
+    if (depth === 2) return winter ? 2 : 5
+    return winter ? 2 : 4
   }
 
-  function sprinkle(s, n) {
-    const pine = pal.pine
+  function sprinkle(s, n, rnd) {
     for (let i = 0; i < n; i++) {
       s.leaves.push({
-        along: 0.22 + Math.random() * 0.78,
-        side: Math.random() < 0.5 ? -1 : 1,
-        size: pine ? u * (0.12 + Math.random() * 0.12) : u * (0.14 + Math.random() * 0.16),
-        rot: (Math.random() - 0.5) * 0.9,
+        along: 0.2 + rnd() * 0.78,
+        side: rnd() < 0.5 ? -1 : 1,
+        size: pal.pine ? u * (0.11 + rnd() * 0.1) : u * (0.13 + rnd() * 0.15),
+        rot: (rnd() - 0.5) * 0.9,
         on: true,
-        pine,
-        hue: Math.random() < 0.55 ? pal.leaf : pal.leaf2,
+        pine: pal.pine,
+        hue: rnd() < 0.55 ? pal.leaf : pal.leaf2,
+        phase: rnd() * Math.PI * 2,
       })
     }
   }
 
-  function growBranch(parent, depth, maxD, rest, lenN, thick) {
+  function growBranch(parentNode, depth, maxD, ang, len, thick, rnd, parentStick) {
     const role = depth === 1 ? 'limb' : depth === 2 ? 'branch' : 'twig'
-    const k = depth === 1 ? 78 : depth === 2 ? 62 : Math.max(42, 58 - depth * 4)
-    const brk = depth === 1 ? 8.5 : depth === 2 ? 2.4 : 1.05
-    const s = addSeg(parent, rest, lenN, Math.max(1.05, thick), role, k, brk)
-    sprinkle(s, leafN(depth))
-    if (depth >= maxD) return s
-    const kids = depth === 1 ? 2 + (Math.random() < 0.45 ? 1 : 0) : depth === 2 ? 2 : depth >= 4 ? 1 : 1 + (Math.random() < 0.65 ? 1 : 0)
+    const steps = depth === 1 ? 4 : depth === 2 ? 3 : 2
+    let prev = parentNode
+    let first = null
+    const segs = []
+    for (let i = 0; i < steps; i++) {
+      const step = len / steps
+      const wob = ang + (rnd() - 0.5) * 0.08
+      const n = addNode(prev.x + Math.cos(wob) * step, prev.y + Math.sin(wob) * step, role)
+      const s = addStick(prev, n, role, Math.max(1.05, thick * (1 - i * 0.12)))
+      if (i === 0 && parentStick) {
+        s.parent = parentStick.i
+        parentStick.kids.push(s.i)
+      } else if (segs.length) {
+        const prevS = segs[segs.length - 1]
+        s.parent = prevS.i
+        prevS.kids.push(s.i)
+      }
+      if (!first) first = s
+      segs.push(s)
+      sprinkle(s, i === steps - 1 ? leafN(depth) : Math.max(0, leafN(depth) - 2), rnd)
+      prev = n
+    }
+    if (depth >= maxD) return first
+    const kids = depth === 1 ? 2 + (rnd() < 0.4 ? 1 : 0) : depth === 2 ? 1 + (rnd() < 0.7 ? 1 : 0) : 1
     for (let i = 0; i < kids; i++) {
       const side = (i + depth) % 2 === 0 ? -1 : 1
-      const childRest = side * (0.26 + Math.random() * 0.52) + (Math.random() - 0.5) * 0.12
-      growBranch(s, depth + 1, maxD, childRest, lenN * (0.5 + Math.random() * 0.16), thick * 0.58)
+      const childAng = ang + side * (0.38 + rnd() * 0.5)
+      const from = segs[Math.min(segs.length - 1, 1 + (i % Math.max(1, segs.length - 1)))]
+      growBranch(from.b, depth + 1, maxD, childAng, len * (0.52 + rnd() * 0.14), thick * 0.58, rnd, from)
     }
-    return s
+    return first
   }
 
-  function grow(kindName) {
-    segs.length = 0
+  function storeRest() {
+    for (const n of nodes) {
+      n.restX = n.x
+      n.restY = n.y
+      n.px = n.x
+      n.py = n.y
+    }
+  }
+
+  function grow(kindName, forcedSeed) {
+    nodes.length = 0
+    sticks.length = 0
     drain(falling)
     drain(settled)
+    trail.length = 0
+    grabs.clear()
     kind = kindName
     pal = PAL[kind] || PAL.summer
-    const trunkN = 5
-    const tLen = 0.118
-    let node = null
+    lastKind = kind
+    seed = (forcedSeed ?? ((Math.random() * 0x7fffffff) | 0)) || 1
+    let s = seed >>> 0
+    const rnd = () => {
+      s = (Math.imul(s, 1664525) + 1013904223) >>> 0
+      return s / 4294967296
+    }
+    const rootX = w * 0.5
+    const root = addNode(rootX, ground, 'trunk', true)
+    const trunkN = 6
+    const tLen = treeH * 0.52
+    let prev = root
+    const trunk = []
     for (let i = 0; i < trunkN; i++) {
-      const thick = Math.max(3.8, 10.4 - i * 1.25)
-      const k = 150 - i * 8
-      node = addSeg(node, i === 0 ? -Math.PI / 2 : (Math.random() - 0.5) * 0.04, tLen, thick, 'trunk', k, 99)
+      const n = addNode(prev.x + (rnd() - 0.5) * 2, prev.y - tLen / trunkN, 'trunk', false)
+      const st = addStick(prev, n, 'trunk', Math.max(3.6, 10.2 - i * 1.15))
+      if (trunk.length) {
+        st.parent = trunk[trunk.length - 1].i
+        trunk[trunk.length - 1].kids.push(st.i)
+      }
+      trunk.push(st)
+      prev = n
     }
     for (let i = 1; i < trunkN; i++) {
-      const trunk = segs[i]
-      const nLimbs = i === 1 ? 2 : i >= 3 ? 3 : 2
-      const maxD = i >= 3 ? 5 : 4
+      const nLimbs = i === 1 ? 2 : i >= 4 ? 3 : 2
+      const maxD = i >= 4 ? 4 : 3
       for (let j = 0; j < nLimbs; j++) {
         const side = (i + j) % 2 === 0 ? -1 : 1
-        const rest = side * (0.28 + Math.random() * 0.46 + (i === 1 ? 0.12 : 0))
-        const lenN = 0.1 + Math.random() * 0.045 + (i >= 3 ? 0.028 : 0)
-        growBranch(trunk, 1, maxD, rest, lenN, 5.6 - i * 0.35)
+        const ang = -Math.PI / 2 + side * (0.42 + rnd() * 0.5 + (i === 1 ? 0.12 : 0))
+        const len = treeH * (0.22 + rnd() * 0.08 + (i >= 4 ? 0.04 : 0))
+        growBranch(trunk[i].b, 1, maxD, ang, len, 5.4 - i * 0.32, rnd, trunk[i])
       }
     }
-    growBranch(node, 1, 5, (Math.random() - 0.5) * 0.18, 0.11, 5)
+    growBranch(prev, 1, 4, -Math.PI / 2 + (rnd() - 0.5) * 0.2, treeH * 0.2, 4.6, rnd, trunk[trunk.length - 1])
+    storeRest()
     seedWeather()
-    scaleLens()
-    fitRest()
-  }
-
-  function scaleLens() {
-    for (const s of segs) s.len = s.lenN * treeH
-  }
-
-  function fitRest() {
-    kinematics()
-    let top = ground
-    for (const s of segs) {
-      if (!s.alive) continue
-      top = Math.min(top, s.y, s.ty)
-    }
-    const free = Math.max(40, ground - sky)
-    const limit = sky + free * 0.2
-    const span = ground - top
-    if (span < 8) return
-    const k = (ground - limit) / span
-    for (const s of segs) s.len *= k
-    kinematics()
-  }
-
-  function kinematics() {
-    const rootX = w * 0.5
-    const rootY = ground
-    for (const s of segs) {
-      if (!s.alive) continue
-      if (s.p < 0) {
-        s.x = rootX
-        s.y = rootY
-        s.wa = s.angle
-      } else {
-        const p = segs[s.p]
-        s.x = p.tx
-        s.y = p.ty
-        s.wa = p.wa + s.angle
-      }
-      s.tx = s.x + Math.cos(s.wa) * s.len
-      s.ty = s.y + Math.sin(s.wa) * s.len
-    }
   }
 
   function seedWeather() {
     rain.length = 0
     snow.length = 0
+    puddles.length = 0
+    groundSnow.length = 0
     if (pal.weather === 'rain') {
       for (let i = 0; i < RAIN_N; i++) {
         rain.push({
           x: Math.random() * w,
           y: Math.random() * h,
-          vy: 280 + Math.random() * 160,
-          len: 8 + Math.random() * 10,
+          vy: 320 + Math.random() * 180,
+          len: 10 + Math.random() * 10,
+        })
+      }
+      for (let i = 0; i < 7; i++) {
+        puddles.push({
+          x: w * (0.12 + i * 0.12) + (Math.random() - 0.5) * 18,
+          y: ground + 6,
+          r: 6 + Math.random() * 8,
+          a: 0.18,
         })
       }
     }
@@ -316,126 +403,34 @@ export function mount(stage, { still, peek } = {}) {
         snow.push({
           x: Math.random() * w,
           y: Math.random() * h,
-          vy: 22 + Math.random() * 28,
           vx: (Math.random() - 0.5) * 18,
-          r: 1.1 + Math.random() * 1.8,
+          vy: 28 + Math.random() * 26,
+          r: 1.1 + Math.random() * 1.6,
         })
       }
+      const bins = 28
+      for (let i = 0; i < bins; i++) groundSnow.push(0)
     }
   }
 
   function leafWorld(s, leaf) {
-    const ang = s.wa + leaf.rot
+    const ax = s.a.x
+    const ay = s.a.y
+    const wa = Math.atan2(s.b.y - ay, s.b.x - ax)
+    const ang = wa + leaf.rot
     const spread = s.thick * 1.5 + leaf.size * 0.85
-    const x = s.x + Math.cos(s.wa) * s.len * leaf.along + Math.cos(ang + Math.PI / 2) * leaf.side * spread
-    const y = s.y + Math.sin(s.wa) * s.len * leaf.along + Math.sin(ang + Math.PI / 2) * leaf.side * spread
+    const breeze = Math.sin(t * (pal.weather === 'wind' ? 4.2 : 2.4) + leaf.phase) * gust * (pal.pine ? 3.2 : 5.5)
+    const x = ax + Math.cos(wa) * s.rest * leaf.along + Math.cos(ang + Math.PI / 2) * leaf.side * spread + breeze
+    const y = ay + Math.sin(wa) * s.rest * leaf.along + Math.sin(ang + Math.PI / 2) * leaf.side * spread
     return { x, y, ang }
-  }
-
-  function spawnFall(x, y, vx, vy, pine, wood, hue) {
-    if (falling.length >= FALL_MAX) freeBit(falling.shift())
-    const p = takeBit()
-    p.x = x
-    p.y = y
-    p.vx = vx
-    p.vy = vy
-    p.rot = Math.random() * Math.PI
-    p.rv = (Math.random() - 0.5) * 6
-    p.pine = !!pine
-    p.wood = !!wood
-    p.len = wood ? 10 + Math.random() * 18 : 0
-    p.thick = wood ? 1.2 + Math.random() * 2 : 0
-    p.size = u * (0.14 + Math.random() * 0.16)
-    p.age = 0
-    p.sleep = false
-    p.hue = hue || (pine ? pal.leaf : pal.leaf2)
-    falling.push(p)
-    return p
-  }
-
-  function shedFrom(s, force, spray) {
-    let n = 0
-    for (const leaf of s.leaves) {
-      if (!leaf.on) continue
-      const chance = pal.shed * force * (spray ? 1.8 : 1)
-      if (Math.random() > chance) continue
-      leaf.on = false
-      const p = leafWorld(s, leaf)
-      const a = s.wa + (Math.random() - 0.5) * (spray ? 2.4 : 0.6)
-      const sp = (spray ? 140 : 30) + force * (spray ? 220 : 80)
-      spawnFall(
-        p.x,
-        p.y,
-        Math.cos(a) * sp + gust * 40,
-        Math.sin(a) * sp * (spray ? 0.4 : 0.2) - 20,
-        leaf.pine,
-        false,
-        leaf.hue,
-      )
-      n += 1
-    }
-    if (s.snow > 0 && force > 0.12) {
-      const puff = Math.min(s.snow, force * 0.5)
-      s.snow -= puff
-      for (let i = 0; i < 3; i++) spawnFall(s.tx, s.ty, (Math.random() - 0.5) * 40, -10 - Math.random() * 20, false, false)
-    }
-    return n
-  }
-
-  function breakOff(s) {
-    if (!s.alive || s.role === 'trunk') return
-    s.alive = false
-    const speed = s.angVel * s.len
-    const vx = -Math.sin(s.wa) * speed + (Math.random() - 0.5) * 30
-    const vy = Math.cos(s.wa) * speed - 20
-    spawnFall(s.x, s.y, vx, vy, false, true)
-    falling[falling.length - 1].len = s.len
-    falling[falling.length - 1].thick = s.thick
-    falling[falling.length - 1].rot = s.wa
-    const stack = [...s.kids]
-    while (stack.length) {
-      const c = segs[stack.pop()]
-      if (!c || !c.alive) continue
-      c.alive = false
-      for (const leaf of c.leaves) {
-        if (!leaf.on) continue
-        leaf.on = false
-        const p = leafWorld(c, leaf)
-        spawnFall(p.x, p.y, vx * 0.4 + (Math.random() - 0.5) * 50, vy * 0.3 - Math.random() * 40, leaf.pine, false, leaf.hue)
-      }
-      stack.push(...c.kids)
-    }
-    for (const leaf of s.leaves) {
-      if (!leaf.on) continue
-      leaf.on = false
-      const p = leafWorld(s, leaf)
-      spawnFall(p.x, p.y, vx * 0.5, vy * 0.4, leaf.pine, false, leaf.hue)
-    }
-    if (!peek && !still) {
-      sfxSnap()
-      taptic(18)
-    }
-  }
-
-  function capOf(s) {
-    if (s.role === 'trunk') return 0.34
-    if (s.role === 'limb') return 1.28
-    if (s.role === 'branch') return 1.55
-    return 1.85
-  }
-
-  function heldSet() {
-    const held = new Set()
-    for (const g of grabs.values()) if (g.s && g.s.alive) held.add(g.s)
-    return held
   }
 
   function nearest(px, py) {
     let best = null
     let bestScore = Infinity
-    for (const s of segs) {
-      if (!s.alive) continue
-      const hit = distSeg(px, py, s.x, s.y, s.tx, s.ty)
+    for (const s of sticks) {
+      if (!s.alive || s.falling) continue
+      const hit = distSeg(px, py, s.a.x, s.a.y, s.b.x, s.b.y)
       let d = hit.d
       for (const leaf of s.leaves) {
         if (!leaf.on) continue
@@ -443,114 +438,209 @@ export function mount(stage, { still, peek } = {}) {
         const ld = Math.hypot(px - lp.x, py - lp.y) - leaf.size * 1.8
         if (ld < d) d = Math.max(0, ld)
       }
-      const pad = s.role === 'trunk' ? 64 : s.role === 'limb' ? 120 : s.role === 'branch' ? 104 : 88
+      const pad = s.role === 'trunk' ? 70 : s.role === 'limb' ? 130 : 100
       if (d > pad) continue
-      const prefer = s.role === 'limb' ? 26 : s.role === 'branch' ? 14 : s.role === 'trunk' ? 10 : 0
-      const onWood = hit.d < Math.max(16, s.thick * 2.2) ? 48 : 0
+      const prefer = s.role === 'limb' ? 22 : s.role === 'branch' ? 12 : s.role === 'trunk' ? 8 : 0
+      const onWood = hit.d < Math.max(16, s.thick * 2.2) ? 40 : 0
       const score = d - prefer - onWood
       if (score < bestScore) {
         bestScore = score
-        best = { s, t: Math.max(0.22, hit.t) }
+        best = { s, t: Math.max(0.2, hit.t), node: hit.t < 0.5 ? s.a : s.b }
       }
     }
     return best
   }
 
-  function pull(s, along, px, py, dt) {
-    const parentWA = s.p >= 0 ? segs[s.p].wa : 0
-    let want = Math.atan2(py - s.y, px - s.x) - parentWA
-    while (want - s.angle > Math.PI) want -= Math.PI * 2
-    while (s.angle - want > Math.PI) want += Math.PI * 2
-    const cap = capOf(s)
-    const target = s.rest + Math.max(-cap, Math.min(cap, want - s.rest))
-    const err = target - s.angle
-    const follow = s.role === 'trunk' ? 14 : 22
-    const alpha = 1 - Math.exp(-follow * dt)
-    s.angle += err * alpha
-    s.angVel = err * follow
-    if (s.p >= 0) {
-      const p = segs[s.p]
-      p.angVel += err * (p.role === 'trunk' ? 0.4 : 0.9)
-      if (p.p >= 0) segs[p.p].angVel += err * 0.22
-      for (const ki of p.kids) {
-        if (ki === s.i) continue
-        const sib = segs[ki]
-        if (sib?.alive) sib.angVel += err * 0.55
-      }
-    }
-    for (const ki of s.kids) {
-      const c = segs[ki]
-      if (c?.alive) c.angVel += err * 0.7
-    }
-    const gx = s.x + (s.tx - s.x) * along
-    const gy = s.y + (s.ty - s.y) * along
-    return Math.min(1, Math.hypot(px - gx, py - gy) / 90)
+  function heldSet() {
+    const held = new Set()
+    for (const g of grabs.values()) if (g.node) held.add(g.node)
+    return held
   }
 
   function stepTree(dt) {
-    if (pal.weather === 'wind') {
-      gust = Math.sin(t * 0.55) * Math.sin(t * 1.15) * 0.55
-    } else gust = gust * 0.9
-
     const held = heldSet()
-    for (const s of segs) {
-      if (!s.alive) continue
-      if (!held.has(s)) {
-        let torque = -s.k * (s.angle - s.rest) - s.damp * s.angVel
-        if (pal.weather === 'wind' && s.role !== 'trunk') torque += gust * (s.role === 'twig' ? 2.4 : 1.1)
-        s.angVel += torque * dt
-        s.angle += s.angVel * dt
-      }
-      const cap = capOf(s)
-      if (s.angle > s.rest + cap) {
-        s.angle = s.rest + cap
-        s.angVel *= -0.42
-      } else if (s.angle < s.rest - cap) {
-        s.angle = s.rest - cap
-        s.angVel *= -0.42
-      }
-      const strain = Math.abs(s.angle - s.rest) + Math.abs(s.angVel) * 0.1
-      if (strain > s.brk && s.role !== 'trunk') breakOff(s)
-    }
-    kinematics()
+    const interacting = held.size > 0
+    if (pal.weather === 'wind') gust = 0.65 + Math.sin(t * 0.7) * Math.sin(t * 1.3) * 0.7
+    else if (pal.weather === 'breeze') gust = 0.28 + Math.sin(t * 0.9) * 0.18
+    else gust = 0.12 + Math.sin(t * 0.55) * 0.08
 
-    let shedN = 0
-    for (const s of segs) {
-      if (!s.alive) continue
-      const cap = capOf(s)
-      const force = Math.abs(s.angVel) * 0.07 + (Math.abs(s.angle - s.rest) / cap) * 0.32
-      if (force < 0.05) continue
-      const spray = pal.pine && force > 0.35
-      shedN += shedFrom(s, Math.min(1.4, force), spray)
+    const g = pal.weather === 'snow' ? 420 : 520
+    const damp = interacting ? 0.999 : 0.991
+    const restK = interacting ? 0 : 0.02
+    const windX = gust * (pal.weather === 'wind' ? 38 : pal.weather === 'breeze' ? 14 : 6)
+
+    for (const n of nodes) {
+      if (n.pin || n.grab) continue
+      const vx = (n.x - n.px) * damp
+      const vy = (n.y - n.py) * damp
+      n.px = n.x
+      n.py = n.y
+      n.x += vx + windX * dt * (n.role === 'trunk' ? 0.15 : 1)
+      n.y += vy + (n.falling ? g : 90) * dt * dt
+      if (!n.falling) {
+        n.x += (n.restX - n.x) * restK
+        n.y += (n.restY - n.y) * restK
+      }
+      if (n.y > ground - 2) {
+        n.y = ground - 2
+        n.py = n.y - vy * 0.2
+        if (n.falling) n.px = n.x - vx * 0.4
+      }
     }
-    if (shedN && !peek && !still) {
-      sfxRustle(0.03 + Math.min(0.06, shedN * 0.008))
-      if (shedN > 4) taptic(8)
+
+    const iters = interacting ? 8 : 4
+    for (let k = 0; k < iters; k++) {
+      for (const s of sticks) {
+        if (!s.alive && !s.falling) continue
+        const a = s.a
+        const b = s.b
+        let dx = b.x - a.x
+        let dy = b.y - a.y
+        const dist = Math.hypot(dx, dy) || 0.001
+        const diff = (dist - s.rest) / dist
+        const stiff = s.falling ? 0.85 : s.stiff
+        const ex = dx * 0.5 * diff * stiff
+        const ey = dy * 0.5 * diff * stiff
+        if (!a.pin && !a.grab) {
+          a.x += ex
+          a.y += ey
+        }
+        if (!b.pin && !b.grab) {
+          b.x -= ex
+          b.y -= ey
+        }
+      }
+      const root = nodes[0]
+      if (root) {
+        root.x = w * 0.5
+        root.y = ground
+        root.px = root.x
+        root.py = root.y
+      }
+    }
+
+    if (pal.weather === 'wind') shedWind(dt)
+    if (interacting) flingWeather()
+  }
+
+  function shedWind(dt) {
+    if (kind === 'summer') return
+    for (const s of sticks) {
+      if (!s.alive || s.falling) continue
+      const vx = s.b.x - s.b.px
+      const force = Math.abs(gust) * 0.012 + Math.hypot(vx, s.b.y - s.b.py) * 0.02
+      if (force < 0.01) continue
+      for (const leaf of s.leaves) {
+        if (!leaf.on) continue
+        if (Math.random() > force * dt * 14) continue
+        leaf.on = false
+        const p = leafWorld(s, leaf)
+        spawnFall(p.x, p.y, gust * 40 + (Math.random() - 0.5) * 30, -20 + Math.random() * 20, {
+          pine: leaf.pine,
+          hue: leaf.hue,
+          size: leaf.size,
+        })
+      }
     }
   }
 
+  function flingWeather() {
+    for (const s of sticks) {
+      if (!s.alive) continue
+      const spd = Math.hypot(s.b.x - s.b.px, s.b.y - s.b.py)
+      if (spd < 2.2) continue
+      if (pal.weather === 'snow' && s.snow > 0) {
+        s.snow = Math.max(0, s.snow - 0.18)
+        const mx = (s.a.x + s.b.x) * 0.5
+        const my = (s.a.y + s.b.y) * 0.5
+        spawnFall(mx, my, (s.b.x - s.b.px) * 18, (s.b.y - s.b.py) * 12 - 30, { snow: true, size: 2.2 })
+      }
+      if (pal.weather === 'rain' && Math.random() < 0.35) {
+        spawnFall((s.a.x + s.b.x) * 0.5, (s.a.y + s.b.y) * 0.5, (s.b.x - s.b.px) * 10, 40, { rain: true, size: 2 })
+      }
+    }
+  }
+
+  function markFalling(s) {
+    s.falling = true
+    s.alive = false
+    s.a.falling = true
+    s.b.falling = true
+    s.a.pin = false
+    s.b.pin = false
+    for (const ki of s.kids) markFalling(sticks[ki])
+  }
+
+  function sliceStick(s) {
+    if (!s || !s.alive || s.role === 'trunk' || s.falling) return false
+    markFalling(s)
+    const mx = (s.a.x + s.b.x) * 0.5
+    const my = (s.a.y + s.b.y) * 0.5
+    spawnFall(mx, my, (Math.random() - 0.5) * 80, -40, { wood: true, len: s.rest * 0.6, thick: s.thick, hue: pal.wood })
+    for (const leaf of s.leaves) {
+      if (!leaf.on) continue
+      leaf.on = false
+      const p = leafWorld(s, leaf)
+      spawnFall(p.x, p.y, (Math.random() - 0.5) * 90, -30, { pine: leaf.pine, hue: leaf.hue, size: leaf.size })
+    }
+    sfxSlice()
+    sfxSnap()
+    safe(() => taptic(12))
+    return true
+  }
+
+  function trySlice(x0, y0, x1, y1, speed) {
+    if (speed < SLICE_SPEED) return false
+    let cut = false
+    for (const s of sticks) {
+      if (!s.alive || s.role === 'trunk' || s.falling) continue
+      const hit = segCross(x0, y0, x1, y1, s.a.x, s.a.y, s.b.x, s.b.y)
+      if (!hit) {
+        const near = distSeg(x1, y1, s.a.x, s.a.y, s.b.x, s.b.y)
+        const mid = distSeg((x0 + x1) * 0.5, (y0 + y1) * 0.5, s.a.x, s.a.y, s.b.x, s.b.y)
+        if (near.d > 28 && mid.d > 28) continue
+      }
+      if (sliceStick(s)) cut = true
+    }
+    return cut
+  }
+
   function stepFall(dt) {
-    const g = 420
+    const g = 520
     for (let i = falling.length - 1; i >= 0; i--) {
       const p = falling[i]
       p.age += dt
-      p.vy += g * dt * (p.wood ? 1 : 0.55)
-      p.vx += gust * 90 * dt
-      if (pal.weather === 'wind' && !p.wood) p.vx += 36 * dt
+      p.vy += g * dt * (p.wood ? 1 : p.snow ? 0.22 : p.rain ? 0.9 : 0.55)
+      p.vx += gust * 70 * dt
+      if (pal.weather === 'wind' && !p.wood) p.vx += 40 * dt
       p.vx *= 0.995
       p.x += p.vx * dt
       p.y += p.vy * dt
       p.rot += p.rv * dt
       if (p.y >= ground - 2) {
+        if (p.rain) {
+          falling.splice(i, 1)
+          freeBit(p)
+          const pud = puddles[(Math.random() * puddles.length) | 0]
+          if (pud) pud.r = Math.min(22, pud.r + 0.6)
+          continue
+        }
         p.y = ground - 2
         p.vx = 0
         p.vy = 0
         p.rv = 0
         p.sleep = true
+        if (p.snow) {
+          const bins = groundSnow.length
+          if (bins) {
+            const bi = Math.max(0, Math.min(bins - 1, ((p.x / w) * bins) | 0))
+            groundSnow[bi] = Math.min(18, (groundSnow[bi] || 0) + 0.55)
+          }
+        }
         if (settled.length >= SETTLED_MAX) freeBit(settled.shift())
         settled.push(p)
         falling.splice(i, 1)
-        if (!peek && !still && Math.random() < 0.18) sfxLand()
+        if (!peek && !still && Math.random() < 0.12) sfxLand()
       }
     }
   }
@@ -559,37 +649,41 @@ export function mount(stage, { still, peek } = {}) {
     if (pal.weather === 'rain') {
       for (const d of rain) {
         d.y += d.vy * dt
-        d.x += 18 * dt
+        d.x += 22 * dt + gust * 30 * dt
         if (d.y > ground) {
-          d.y = -10
+          d.y = -12
           d.x = Math.random() * w
+          const pud = puddles[(Math.random() * puddles.length) | 0]
+          if (pud) {
+            pud.r = Math.min(24, pud.r + 0.35)
+            pud.a = Math.min(0.42, pud.a + 0.01)
+          }
         }
       }
     }
     if (pal.weather === 'snow') {
       for (const f of snow) {
         f.y += f.vy * dt
-        f.x += f.vx * dt + Math.sin(t * 1.4 + f.x) * 8 * dt
+        f.x += f.vx * dt + Math.sin(t * 1.4 + f.x * 0.04) * 10 * dt + gust * 20 * dt
         if (f.y > ground) {
-          f.y = -6
+          const bins = groundSnow.length
+          if (bins) {
+            const bi = Math.max(0, Math.min(bins - 1, ((f.x / w) * bins) | 0))
+            groundSnow[bi] = Math.min(18, (groundSnow[bi] || 0) + 0.28)
+          }
+          f.y = -8
           f.x = Math.random() * w
         }
       }
     }
   }
 
-  function stopAmbient() {
-    if (!ambient) return
-    ambient.stop()
-    ambient = null
-  }
-
   function startAmbient() {
     if (ambient || peek || still || !canPlay()) return
-    const a = unlock()
-    const dest = getMaster()
+    const a = safe(() => unlock())
+    const dest = safe(() => getMaster())
     if (!a || !dest) return
-    const nodes = []
+    const nodesA = []
     const noises = []
     function osc(type, freq, peak) {
       const o = a.createOscillator()
@@ -600,42 +694,41 @@ export function mount(stage, { still, peek } = {}) {
       o.connect(g)
       g.connect(dest)
       o.start()
-      nodes.push(o, g)
-      return { o, g }
+      nodesA.push(o, g)
     }
     try {
       if (pal.weather === 'rain') {
         const n = loopNoise({ freq: 1500, q: 0.55 })
         n?.set(0.045, 1600)
         if (n) noises.push(n)
-      } else if (pal.weather === 'wind') {
-        const n = loopNoise({ freq: 280, q: 0.5 })
-        n?.set(0.04, 240)
+      } else if (pal.weather === 'wind' || pal.weather === 'breeze') {
+        const n = loopNoise({ freq: pal.weather === 'breeze' ? 900 : 280, q: 0.5 })
+        n?.set(pal.weather === 'breeze' ? 0.018 : 0.04, pal.weather === 'breeze' ? 1100 : 240)
         if (n) noises.push(n)
       } else if (pal.weather === 'snow') {
         const n = loopNoise({ freq: 900, q: 0.7 })
         n?.set(0.022, 720)
         if (n) noises.push(n)
-      } else {
-        osc('sine', 196, 0.012)
-        osc('triangle', 294, 0.008)
-        const n = loopNoise({ freq: 1800, q: 1.1 })
-        n?.set(0.012, 2000)
-        if (n) noises.push(n)
       }
     } catch {
-      /* summer sun oscillators must not abort a grab */
+      /* never abort the loop */
     }
     ambient = {
       chirp() {
-        if (pal.weather !== 'sun' || !canPlay()) return
-        tone({ type: 'sine', freq: 1480 + Math.random() * 400, duration: 0.05, peak: 0.018, slide: 1900 })
+        if (pal.weather !== 'breeze' || !canPlay()) return
+        safe(() => tone({ type: 'sine', freq: 1480 + Math.random() * 400, duration: 0.05, peak: 0.018, slide: 1900 }))
       },
       setWind(v) {
-        noises[0]?.set(pal.weather === 'wind' ? 0.028 + Math.abs(v) * 0.03 : undefined)
+        try {
+          noises[0]?.set(
+            pal.weather === 'wind' ? 0.028 + Math.abs(v) * 0.03 : pal.weather === 'breeze' ? 0.014 : undefined,
+          )
+        } catch {
+          /* */
+        }
       },
       stop() {
-        for (const n of nodes) {
+        for (const n of nodesA) {
           try {
             if (n.stop) n.stop()
             n.disconnect()
@@ -643,18 +736,38 @@ export function mount(stage, { still, peek } = {}) {
             /* already */
           }
         }
-        for (const n of noises) n.stop()
+        for (const n of noises) {
+          try {
+            n.stop()
+          } catch {
+            /* */
+          }
+        }
       },
     }
   }
 
-  function syncAudio() {
-    if (!live() || peek || still) {
-      stopAmbient()
-      return
+  function stopAmbient() {
+    if (!ambient) return
+    try {
+      ambient.stop()
+    } catch {
+      /* */
     }
-    if (canPlay()) startAmbient()
-    else stopAmbient()
+    ambient = null
+  }
+
+  function syncAudio() {
+    try {
+      if (!live() || peek || still) {
+        stopAmbient()
+        return
+      }
+      if (canPlay()) startAmbient()
+      else stopAmbient()
+    } catch {
+      /* audio must never stop the frame */
+    }
   }
 
   function ptr(e) {
@@ -663,7 +776,8 @@ export function mount(stage, { still, peek } = {}) {
   }
 
   function onDown(e) {
-    if (peek || still || !live()) return
+    if (peek || still) return
+    if (!live()) return
     if (e.pointerType !== 'touch' && e.button) return
     e.preventDefault?.()
     try {
@@ -672,52 +786,73 @@ export function mount(stage, { still, peek } = {}) {
       /* capture optional */
     }
     const p = ptr(e)
+    swipe.x = swipe.px = swipe.sx = p.x
+    swipe.y = swipe.py = swipe.sy = p.y
+    swipe.pt = performance.now()
+    swipe.speed = 0
+    swipe.active = true
+    sliceArmed = false
+    trail.push({ x: p.x, y: p.y, age: 0 })
     const hit = nearest(p.x, p.y)
-    if (!hit) return
-    grabs.set(p.id, { s: hit.s, t: hit.t, x: p.x, y: p.y })
+    if (hit) grabs.set(p.id, { s: hit.s, node: hit.node, t: hit.t, x: p.x, y: p.y, committed: false })
     canvas.style.cursor = 'grabbing'
-    taptic(7)
-    try {
+    safe(() => {
       unlock()
       startAmbient()
-      sfxCreak()
-    } catch {
-      /* audio optional — grab already set */
-    }
+    })
   }
 
   function onMove(e) {
-    const g = grabs.get(e.pointerId)
-    if (!g) return
     const p = ptr(e)
-    g.x = p.x
-    g.y = p.y
-  }
-
-  function shakeAround(s, kick) {
-    if (s.p >= 0) {
-      const p = segs[s.p]
-      p.angVel += kick * 0.18
-      for (const ki of p.kids) {
-        if (ki === s.i) continue
-        const sib = segs[ki]
-        if (sib?.alive) sib.angVel += kick * 0.24
+    const now = performance.now()
+    if (swipe.active && e.pointerId != null) {
+      const dt = Math.max(0.008, (now - swipe.pt) / 1000)
+      const dist = Math.hypot(p.x - swipe.x, p.y - swipe.y)
+      swipe.speed = dist / (dt * 1000)
+      const ox = swipe.x
+      const oy = swipe.y
+      swipe.px = swipe.x
+      swipe.py = swipe.y
+      swipe.x = p.x
+      swipe.y = p.y
+      swipe.pt = now
+      trail.push({ x: p.x, y: p.y, age: 0 })
+      if (trail.length > 18) trail.shift()
+      if (live() && swipe.speed >= SLICE_SPEED) {
+        sliceArmed = true
+        const g = grabs.get(e.pointerId)
+        if (g && !g.committed) {
+          grabs.delete(e.pointerId)
+          if (g.node) g.node.grab = false
+        }
+        trySlice(ox, oy, p.x, p.y, swipe.speed)
       }
     }
-    for (const ki of s.kids) {
-      const c = segs[ki]
-      if (c?.alive) c.angVel += kick * 0.34
+    const g = grabs.get(e.pointerId)
+    if (!g || !live()) return
+    g.x = p.x
+    g.y = p.y
+    if (!g.committed && swipe.speed < GRAB_SPEED && !sliceArmed) {
+      const moved = Math.hypot(p.x - swipe.sx, p.y - swipe.sy)
+      if (moved > 8) g.committed = true
+    }
+    if (g.committed && g.node && !sliceArmed) {
+      g.node.grab = true
+      g.node.x = p.x
+      g.node.y = Math.min(ground - 4, p.y)
+      canvas.style.cursor = 'grabbing'
     }
   }
 
   function onUp(e) {
+    swipe.active = false
     const g = grabs.get(e.pointerId)
-    if (!g) return
-    const s = g.s
-    if (s?.alive) {
-      const kick = (s.angle - s.rest) * -2.6
-      s.angVel += kick
-      shakeAround(s, kick)
+    if (g?.node) {
+      g.node.grab = false
+      const vx = g.node.x - g.node.px
+      const vy = g.node.y - g.node.py
+      g.node.px = g.node.x - vx * 2.2
+      g.node.py = g.node.y - vy * 2.2
     }
     grabs.delete(e.pointerId)
     try {
@@ -726,114 +861,67 @@ export function mount(stage, { still, peek } = {}) {
       /* already */
     }
     if (!grabs.size) canvas.style.cursor = 'grab'
-    if (!peek && !still) {
-      try {
-        sfxRustle(0.04)
-      } catch {
-        /* audio optional */
-      }
-    }
+    if (g?.committed && !peek && !still) sfxRustle(0.04)
+    sliceArmed = false
+  }
+
+  function nextKind() {
+    const opts = KINDS.filter((k) => k !== lastKind)
+    return opts[(Math.random() * opts.length) | 0]
   }
 
   function onReset(e) {
     e?.preventDefault?.()
-    if (!live()) return
-    unlock()
-    grow(KINDS[(Math.random() * KINDS.length) | 0])
+    e?.stopPropagation?.()
+    if (peek || still) return
+    grow(nextKind())
     stopAmbient()
-    startAmbient()
-    sfxReset()
-    taptic(10)
-  }
-
-  function randomKind() {
-    return KINDS[(Math.random() * KINDS.length) | 0]
-  }
-
-  function strip(keep = 0.06) {
-    for (const s of segs) {
-      for (const leaf of s.leaves) {
-        if (Math.random() > keep && leaf.on) {
-          leaf.on = false
-          const p = leafWorld(s, leaf)
-          if (settled.length >= SETTLED_MAX) freeBit(settled.shift())
-          const bit = spawnFall(p.x + (Math.random() - 0.5) * 30, ground - 2, 0, 0, leaf.pine, false, leaf.hue)
-          bit.sleep = true
-          bit.vx = 0
-          bit.vy = 0
-          bit.rv = 0
-          bit.y = ground - 2
-          settled.push(falling.pop())
-        }
-      }
-    }
+    safe(() => {
+      unlock()
+      startAmbient()
+      sfxReset()
+    })
+    safe(() => taptic(10))
   }
 
   function posePull() {
-    grow('autumn')
-    const limb = segs.find((s) => s.role === 'limb' && s.rest > 0) || segs.find((s) => s.role === 'limb')
-    if (limb) {
-      limb.angle += 0.72
-      limb.angVel = 2.2
-      kinematics()
-      const stack = [limb.i]
-      while (stack.length) {
-        const s = segs[stack.pop()]
-        if (!s) continue
-        shedFrom(s, 0.28, false)
-        stack.push(...s.kids)
-      }
-    }
-    for (let i = 0; i < 22; i++) {
-      spawnFall(
-        w * (0.34 + Math.random() * 0.32),
-        sky + (ground - sky) * (0.24 + Math.random() * 0.34),
-        (Math.random() - 0.5) * 36,
-        18 + Math.random() * 36,
-        false,
-        false,
-        Math.random() < 0.5 ? pal.leaf : pal.leaf2,
-      )
-    }
+    const limb = sticks.find((s) => s.role === 'limb' && s.alive)
+    if (!limb) return
+    limb.b.x += 70
+    limb.b.y += 90
   }
 
   function poseSnap() {
-    grow('summer')
-    const twig =
-      segs.find((s) => s.role === 'twig' && s.tx > w * 0.58 && s.ty < ground - 80) ||
-      segs.find((s) => s.role === 'twig')
-    if (twig) {
-      twig.angle += 1.05
-      kinematics()
-      const bx = twig.tx
-      const by = twig.ty
-      breakOff(twig)
-      spawnFall(bx, by + 12, 28, 50, false, true)
-      const bit = falling[falling.length - 1]
-      bit.len = Math.max(28, twig.len)
-      bit.thick = 2.4
-      bit.y = Math.min(by + 36, ground - 90)
-      bit.x = bx + 8
-    }
+    const twig = sticks.find((s) => s.role === 'twig' && s.alive)
+    if (twig) sliceStick(twig)
   }
 
   function poseBare() {
     grow('winter')
-    strip(0.04)
-    const twig = segs.filter((s) => s.role === 'twig')
-    twig.slice(0, 4).forEach((s) => breakOff(s))
+    for (const s of sticks) {
+      for (const leaf of s.leaves) leaf.on = false
+    }
   }
 
   function poseStill() {
-    grow('autumn')
-    const limb = segs.find((s) => s.role === 'limb' && s.rest > 0) || segs.find((s) => s.role === 'limb')
-    if (limb) limb.angle += 0.38
-    kinematics()
-    for (const s of segs) if (s.role !== 'trunk') shedFrom(s, 0.45, false)
-    for (const p of falling) {
-      p.y = ground * (0.45 + Math.random() * 0.35)
-      p.vy = 30
+    grow('autumn', 42)
+    const limb = sticks.find((s) => s.role === 'limb' && s.alive && s.b.restX > w * 0.5) || sticks.find((s) => s.role === 'limb')
+    if (limb) {
+      limb.b.x += 86
+      limb.b.y += 110
     }
+    for (const s of sticks) {
+      if (s.role === 'trunk') continue
+      let n = 0
+      for (const leaf of s.leaves) {
+        if (n++ % 3 === 0 && leaf.on) {
+          leaf.on = false
+          const p = leafWorld(s, leaf)
+          spawnFall(p.x, p.y + Math.random() * 40, 8, 20, { hue: leaf.hue, size: leaf.size })
+        }
+      }
+    }
+    for (const p of falling) p.y = ground * (0.45 + Math.random() * 0.35)
   }
 
   function poseScene(name) {
@@ -852,75 +940,70 @@ export function mount(stage, { still, peek } = {}) {
     ctx.moveTo(0, ground)
     ctx.lineTo(w, ground)
     ctx.stroke()
-    ctx.strokeStyle = 'rgba(183,236,255,0.06)'
-    ctx.lineWidth = 1
-    const step = Math.max(16, u * 1.4)
-    for (let x = 0; x < w; x += step) {
+    if (groundSnow.length) {
+      ctx.fillStyle = 'rgba(231,248,255,0.82)'
       ctx.beginPath()
-      ctx.moveTo(x, ground)
-      ctx.lineTo(x, h)
-      ctx.stroke()
+      ctx.moveTo(0, ground)
+      const bins = groundSnow.length
+      for (let i = 0; i < bins; i++) {
+        const x = ((i + 0.5) / bins) * w
+        const ht = groundSnow[i] || 0
+        ctx.lineTo(x, ground - ht)
+      }
+      ctx.lineTo(w, ground)
+      ctx.closePath()
+      ctx.fill()
+    }
+    if (pal.weather === 'rain') {
+      ctx.fillStyle = 'rgba(120,190,220,0.22)'
+      for (const p of puddles) {
+        ctx.beginPath()
+        ctx.ellipse(p.x, p.y, p.r, p.r * 0.28, 0, 0, Math.PI * 2)
+        ctx.fill()
+      }
     }
   }
 
   function drawSun() {
-    if (pal.weather !== 'sun') return
-    const r = u * 1.55
-    const x = w * 0.84
-    const y = sky + r * 2.8
-    ctx.save()
-    ctx.globalAlpha = 0.85
-    ctx.shadowColor = GOLD
-    ctx.shadowBlur = reduced ? 0 : u * 1.2
-    ctx.strokeStyle = GOLD
-    ctx.fillStyle = 'rgba(255, 224, 138, 0.15)'
-    ctx.lineWidth = 1.6
-    ctx.beginPath()
-    ctx.arc(x, y, r, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.stroke()
-    ctx.shadowBlur = 0
-    ctx.globalAlpha = 0.35
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2 + t * 0.05
-      ctx.beginPath()
-      ctx.moveTo(x + Math.cos(a) * r * 1.25, y + Math.sin(a) * r * 1.25)
-      ctx.lineTo(x + Math.cos(a) * r * 2.4, y + Math.sin(a) * r * 2.4)
-      ctx.stroke()
-    }
-    ctx.restore()
+    if (pal.weather !== 'breeze') return
+    const x = w * 0.82
+    const y = sky + 36
+    const g = ctx.createRadialGradient(x, y, 4, x, y, 46)
+    g.addColorStop(0, 'rgba(255,224,138,0.85)')
+    g.addColorStop(1, 'rgba(255,224,138,0)')
+    ctx.fillStyle = g
+    ctx.fillRect(x - 46, y - 46, 92, 92)
   }
 
   function drawWood() {
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
-    ctx.strokeStyle = pal.wood
     ctx.shadowColor = pal.wood
-    ctx.shadowBlur = reduced ? 0 : 6
-    for (const s of segs) {
-      if (!s.alive || s.role !== 'trunk') continue
-      ctx.lineWidth = Math.max(1.4, s.thick * 0.72)
+    ctx.shadowBlur = 0
+    for (const role of ['trunk', 'limb', 'branch', 'twig']) {
+      ctx.strokeStyle = pal.wood
       ctx.beginPath()
-      ctx.moveTo(s.x, s.y)
-      ctx.lineTo(s.tx, s.ty)
-      ctx.stroke()
+      let started = false
+      for (const s of sticks) {
+        if ((!s.alive && !s.falling) || s.role !== role) continue
+        ctx.lineWidth = Math.max(1.05, s.thick * (role === 'trunk' ? 0.72 : 0.68))
+        if (!started) {
+          ctx.beginPath()
+          started = true
+        }
+        ctx.moveTo(s.a.x, s.a.y)
+        ctx.lineTo(s.b.x, s.b.y)
+      }
+      if (started) ctx.stroke()
     }
     ctx.shadowBlur = 0
-    for (const s of segs) {
-      if (!s.alive || s.role === 'trunk') continue
-      ctx.lineWidth = Math.max(1.05, s.thick * 0.68)
-      ctx.beginPath()
-      ctx.moveTo(s.x, s.y)
-      ctx.lineTo(s.tx, s.ty)
-      ctx.stroke()
-    }
     if (pal.weather === 'snow') {
-      ctx.fillStyle = 'rgba(231,248,255,0.7)'
+      ctx.fillStyle = 'rgba(231,248,255,0.75)'
       ctx.beginPath()
-      for (const s of segs) {
-        if (!s.alive || s.snow < 0.15) continue
-        ctx.moveTo(s.tx + s.thick * 0.55, s.ty)
-        ctx.ellipse(s.tx, s.ty, s.thick * 0.55, 2.2, s.wa, 0, Math.PI * 2)
+      for (const s of sticks) {
+        if ((!s.alive && !s.falling) || s.snow < 0.12) continue
+        ctx.moveTo(s.b.x + s.thick * 0.5, s.b.y)
+        ctx.ellipse(s.b.x, s.b.y, s.thick * 0.55 * s.snow, 2.1, 0, 0, Math.PI * 2)
       }
       ctx.fill()
     }
@@ -929,14 +1012,13 @@ export function mount(stage, { still, peek } = {}) {
   function drawLeaves() {
     const a = pal.leaf
     const b = pal.leaf2
-    ctx.lineWidth = 1
-    ctx.fillStyle = 'rgba(2,8,12,0.45)'
     if (pal.pine) {
       for (const col of [a, b]) {
         ctx.strokeStyle = col
+        ctx.lineWidth = 1
         ctx.beginPath()
-        for (const s of segs) {
-          if (!s.alive) continue
+        for (const s of sticks) {
+          if (!s.alive && !s.falling) continue
           for (const leaf of s.leaves) {
             if (!leaf.on || leaf.hue !== col) continue
             const p = leafWorld(s, leaf)
@@ -950,9 +1032,10 @@ export function mount(stage, { still, peek } = {}) {
     }
     for (const col of [a, b]) {
       ctx.strokeStyle = col
+      ctx.fillStyle = 'rgba(2,8,12,0.45)'
       ctx.beginPath()
-      for (const s of segs) {
-        if (!s.alive) continue
+      for (const s of sticks) {
+        if (!s.alive && !s.falling) continue
         for (const leaf of s.leaves) {
           if (!leaf.on || leaf.hue !== col) continue
           const p = leafWorld(s, leaf)
@@ -968,60 +1051,49 @@ export function mount(stage, { still, peek } = {}) {
   function drawBits(list, alpha = 1) {
     ctx.save()
     ctx.globalAlpha = alpha
-    ctx.shadowBlur = 0
-    ctx.lineCap = 'round'
-    ctx.beginPath()
-    let wood = false
     for (const p of list) {
-      if (!p.wood) continue
-      wood = true
-      const c = Math.cos(p.rot)
-      const s = Math.sin(p.rot)
-      const hx = c * p.len * 0.5
-      const hy = s * p.len * 0.5
-      ctx.moveTo(p.x - hx, p.y - hy)
-      ctx.lineTo(p.x + hx, p.y + hy)
-    }
-    if (wood) {
-      ctx.strokeStyle = pal.wood
-      ctx.lineWidth = 1.6
-      ctx.stroke()
-    }
-    for (const col of [pal.leaf, pal.leaf2]) {
-      ctx.strokeStyle = col
-      ctx.fillStyle = 'rgba(2,8,12,0.45)'
-      ctx.lineWidth = 1
-      ctx.beginPath()
-      let needles = false
-      for (const p of list) {
-        if (p.wood || !p.pine || p.hue !== col) continue
-        needles = true
-        const c = Math.cos(p.rot)
-        const s = Math.sin(p.rot)
-        ctx.moveTo(p.x - c * p.size, p.y - s * p.size)
-        ctx.lineTo(p.x + c * p.size * 1.4, p.y + s * p.size * 1.4)
-      }
-      if (needles) ctx.stroke()
-      ctx.beginPath()
-      let leaf = false
-      for (const p of list) {
-        if (p.wood || p.pine || p.hue !== col) continue
-        leaf = true
-        ctx.moveTo(p.x + (p.size || 3), p.y)
-        ctx.ellipse(p.x, p.y, p.size || 3, (p.size || 3) * 0.4, p.rot + 0.3, 0, Math.PI * 2)
-      }
-      if (leaf) {
-        ctx.fill()
+      ctx.save()
+      ctx.translate(p.x, p.y)
+      ctx.rotate(p.rot)
+      if (p.wood) {
+        ctx.strokeStyle = pal.wood
+        ctx.lineWidth = Math.max(1, p.thick * 0.6)
+        ctx.beginPath()
+        ctx.moveTo(-p.len * 0.5, 0)
+        ctx.lineTo(p.len * 0.5, 0)
         ctx.stroke()
+      } else if (p.snow) {
+        ctx.fillStyle = 'rgba(231,248,255,0.9)'
+        ctx.beginPath()
+        ctx.arc(0, 0, p.size, 0, Math.PI * 2)
+        ctx.fill()
+      } else if (p.rain) {
+        ctx.strokeStyle = 'rgba(183,236,255,0.65)'
+        ctx.lineWidth = 1
+        ctx.beginPath()
+        ctx.moveTo(0, -4)
+        ctx.lineTo(0, 4)
+        ctx.stroke()
+      } else if (p.pine) {
+        ctx.strokeStyle = p.hue
+        ctx.beginPath()
+        ctx.moveTo(0, 0)
+        ctx.lineTo(p.size * 2, 0)
+        ctx.stroke()
+      } else {
+        ctx.fillStyle = p.hue
+        ctx.beginPath()
+        ctx.ellipse(0, 0, p.size, p.size * 0.42, 0.3, 0, Math.PI * 2)
+        ctx.fill()
       }
+      ctx.restore()
     }
     ctx.restore()
   }
 
   function drawWeather() {
     if (pal.weather === 'rain') {
-      ctx.save()
-      ctx.strokeStyle = 'rgba(183,236,255,0.35)'
+      ctx.strokeStyle = 'rgba(183,236,255,0.45)'
       ctx.lineWidth = 1
       ctx.beginPath()
       for (const d of rain) {
@@ -1029,10 +1101,8 @@ export function mount(stage, { still, peek } = {}) {
         ctx.lineTo(d.x - 3, d.y + d.len)
       }
       ctx.stroke()
-      ctx.restore()
     }
     if (pal.weather === 'snow') {
-      ctx.save()
       ctx.fillStyle = 'rgba(231,248,255,0.8)'
       ctx.beginPath()
       for (const f of snow) {
@@ -1040,14 +1110,35 @@ export function mount(stage, { still, peek } = {}) {
         ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2)
       }
       ctx.fill()
-      ctx.restore()
     }
+  }
+
+  function drawTrail() {
+    if (trail.length < 2) return
+    ctx.save()
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    for (let i = 1; i < trail.length; i++) {
+      const a = trail[i - 1]
+      const b = trail[i]
+      const fade = Math.max(0, 1 - b.age / 0.22)
+      ctx.strokeStyle = i % 2 ? ICE : GOLD
+      ctx.shadowColor = ICE
+      ctx.shadowBlur = 10 * fade
+      ctx.globalAlpha = 0.25 + 0.7 * fade
+      ctx.lineWidth = 2 + 7 * fade * (i / trail.length)
+      ctx.beginPath()
+      ctx.moveTo(a.x, a.y)
+      ctx.lineTo(b.x, b.y)
+      ctx.stroke()
+    }
+    ctx.restore()
   }
 
   function draw() {
     clearBacking(canvas, ctx, dpr)
     const g = ctx.createLinearGradient(0, 0, 0, h)
-    g.addColorStop(0, pal.weather === 'sun' ? '#071422' : '#041018')
+    g.addColorStop(0, pal.weather === 'breeze' ? '#071422' : '#041018')
     g.addColorStop(1, BG)
     ctx.fillStyle = g
     ctx.fillRect(0, 0, w, h)
@@ -1058,7 +1149,9 @@ export function mount(stage, { still, peek } = {}) {
     drawLeaves()
     drawBits(falling, 1)
     drawWeather()
+    drawTrail()
     canvas.dataset.kind = kind
+    canvas.dataset.frames = String(frames)
   }
 
   function autoPeek(dt) {
@@ -1067,32 +1160,37 @@ export function mount(stage, { still, peek } = {}) {
       peekT = 0
       peekDir *= -1
     }
-    const limb = segs.find((s) => s.role === 'limb')
-    if (!limb || !limb.alive) return
-    limb.angVel += peekDir * 2.4 * dt
+    const limb = sticks.find((s) => s.role === 'limb' && s.alive)
+    if (!limb) return
+    limb.b.x += peekDir * 18 * dt
   }
 
   function tick(now) {
     const dt = Math.min(0.033, (now - last) / 1000)
     last = now
+    frames += 1
     try {
-      if ((!live() && !peek && !still) || (promptOpen() && !peek && !still)) {
+      syncHits()
+      if (promptOpen() && !peek && !still) {
         syncAudio()
         draw()
         raf = requestAnimationFrame(tick)
         return
       }
-      if (!still && (live() || peek)) {
+      if (!still) {
         t += dt
         if (peek && !reduced) autoPeek(dt)
-        if (grabs.size) {
+        if (grabs.size && live()) {
           let strain = 0
           for (const g of grabs.values()) {
-            if (!g.s.alive) continue
-            strain = Math.max(strain, pull(g.s, g.t, g.x, g.y, dt))
+            if (!g.node || !g.committed) continue
+            g.node.grab = true
+            g.node.x = g.x
+            g.node.y = Math.min(ground - 4, g.y)
+            strain = Math.max(strain, Math.hypot(g.node.x - g.node.restX, g.node.y - g.node.restY) / treeH)
           }
           creakT -= dt
-          if (strain > 0.35 && creakT <= 0) {
+          if (strain > 0.22 && creakT <= 0) {
             creakT = 0.28
             if (!peek && !still) sfxCreak()
           }
@@ -1100,17 +1198,33 @@ export function mount(stage, { still, peek } = {}) {
         stepTree(dt)
         stepFall(dt)
         stepWeather(dt)
-        chirpT -= dt
-        if (pal.weather === 'sun' && chirpT <= 0) {
-          chirpT = 1.6 + Math.random() * 1.8
-          ambient?.chirp()
+        for (let i = trail.length - 1; i >= 0; i--) {
+          trail[i].age += dt
+          if (trail[i].age > 0.22) trail.splice(i, 1)
         }
-        ambient?.setWind(gust)
+        chirpT -= dt
+        if (pal.weather === 'breeze' && chirpT <= 0) {
+          chirpT = 1.6 + Math.random() * 1.8
+          try {
+            ambient?.chirp()
+          } catch {
+            /* */
+          }
+        }
+        try {
+          ambient?.setWind(gust)
+        } catch {
+          /* */
+        }
         syncAudio()
       }
       draw()
     } catch {
-      /* keep the loop alive if a frame fails */
+      try {
+        draw()
+      } catch {
+        /* keep ticking */
+      }
     }
     raf = requestAnimationFrame(tick)
   }
@@ -1118,6 +1232,14 @@ export function mount(stage, { still, peek } = {}) {
   function onKey(e) {
     if (peek || still || promptOpen() || !isLive()) return
     if (e.key === 'r' || e.key === 'R') onReset(e)
+  }
+
+  function onStart() {
+    syncHits()
+    safe(() => {
+      unlock()
+      startAmbient()
+    })
   }
 
   if (!peek && !still) {
@@ -1129,10 +1251,7 @@ export function mount(stage, { still, peek } = {}) {
     window.addEventListener('pointerup', onUp)
     window.addEventListener('pointercancel', onUp)
     window.addEventListener('keydown', onKey)
-    window.addEventListener('playground-start', () => {
-      unlock()
-      startAmbient()
-    })
+    window.addEventListener('playground-start', onStart)
     canvas.addEventListener('contextmenu', (e) => e.preventDefault())
   }
 
@@ -1141,16 +1260,25 @@ export function mount(stage, { still, peek } = {}) {
     const prevH = h
     const ok = layout()
     if (!ok) return
-    if (!segs.length) grow(still ? 'autumn' : randomKind())
-    else if (w !== prevW || h !== prevH) {
-      scaleLens()
-      fitRest()
+    if (!nodes.length) grow(still ? 'autumn' : nextKind())
+    else if (Math.abs(w - prevW) > 2 || Math.abs(h - prevH) > 2) {
+      const sx = w / prevW
+      const sy = treeH / Math.max(80, (prevH * 0.88 - (peek || still ? prevH * 0.05 : prevH * 0.1)) * 0.82)
+      for (const n of nodes) {
+        n.x = w * 0.5 + (n.x - prevW * 0.5) * sx
+        n.y = ground - (ground - n.y) * (sy || 1)
+        n.restX = w * 0.5 + (n.restX - prevW * 0.5) * sx
+        n.restY = ground - (ground - n.restY) * (sy || 1)
+        n.px = n.x
+        n.py = n.y
+      }
+      for (const s of sticks) s.rest = Math.hypot(s.b.restX - s.a.restX, s.b.restY - s.a.restY) || s.rest
     }
     if (still) poseStill()
   })
 
   layout()
-  grow(still ? 'autumn' : peek ? 'summer' : randomKind())
+  grow(still ? 'autumn' : peek ? 'summer' : nextKind())
   if (still) poseStill()
   last = performance.now()
   raf = requestAnimationFrame(tick)
@@ -1160,78 +1288,49 @@ export function mount(stage, { still, peek } = {}) {
     let signed = 0
     let maxVel = 0
     let role = null
-    let i = -1
-    for (const s of segs) {
-      if (!s.alive) continue
-      const b = s.angle - s.rest
-      if (Math.abs(b) > maxBend) {
-        maxBend = Math.abs(b)
-        signed = b
-        role = s.role
-        i = s.i
+    const groundY = ground
+    for (const n of nodes) {
+      if (n.pin) continue
+      const b = Math.hypot(n.x - n.restX, n.y - n.restY)
+      if (b > maxBend) {
+        maxBend = b
+        signed = n.y - n.restY
+        role = n.role
       }
-      maxVel = Math.max(maxVel, Math.abs(s.angVel))
+      maxVel = Math.max(maxVel, Math.hypot(n.x - n.px, n.y - n.py))
     }
     const g = grabs.size ? [...grabs.values()][0] : null
-    let neighborVel = 0
-    if (g?.s?.p >= 0) {
-      for (const ki of segs[g.s.p].kids) {
-        if (ki === g.s.i) continue
-        const sib = segs[ki]
-        if (sib?.alive) neighborVel = Math.max(neighborVel, Math.abs(sib.angVel))
-      }
-      for (const ki of g.s.kids) {
-        const c = segs[ki]
-        if (c?.alive) neighborVel = Math.max(neighborVel, Math.abs(c.angVel))
-      }
-    }
+    const snowY = snow.map((f) => f.y)
+    const rainY = rain.map((d) => d.y)
     return {
       kind,
+      frames,
       maxBend,
       signed,
       maxVel,
       role,
-      i,
       grabCount: grabs.size,
-      grabbed: g?.s ? { i: g.s.i, role: g.s.role, bend: Math.abs(g.s.angle - g.s.rest) } : null,
-      neighborVel,
+      grabbed: g?.node ? { role: g.node.role, y: g.node.y, ground: groundY, committed: g.committed } : null,
       falling: falling.length,
-      segs: segs.length,
+      sticks: sticks.filter((s) => s.alive).length,
+      cut: sticks.filter((s) => s.falling).length,
+      snowY,
+      rainY,
+      snowPile: groundSnow.reduce((a, b) => a + b, 0),
+      puddle: puddles.reduce((a, p) => a + p.r, 0),
+      trail: trail.length,
+      ground: groundY,
     }
   }
   canvas.__limbPoint = () => {
-    const limb =
-      segs.find((s) => s.role === 'limb' && s.alive && Math.abs(s.rest) > 0.12) ||
-      segs.find((s) => s.role === 'limb' && s.alive) ||
-      segs.find((s) => s.role === 'branch' && s.alive)
-    if (!limb) return null
-    return {
-      x: limb.x + (limb.tx - limb.x) * 0.74,
-      y: limb.y + (limb.ty - limb.y) * 0.74,
-      role: limb.role,
-      i: limb.i,
-    }
-  }
-  canvas.__leafPoint = () => {
-    for (const s of segs) {
-      if (!s.alive || s.role === 'trunk') continue
-      for (const leaf of s.leaves) {
-        if (!leaf.on) continue
-        const p = leafWorld(s, leaf)
-        return { x: p.x, y: p.y, role: s.role, i: s.i }
-      }
-    }
-    return null
-  }
-  canvas.__trunkPoint = () => {
-    const s = segs.find((seg) => seg.alive && seg.role === 'trunk')
+    const s = sticks.find((st) => st.role === 'limb' && st.alive) || sticks.find((st) => st.role === 'branch' && st.alive)
     if (!s) return null
-    return {
-      x: s.x + (s.tx - s.x) * 0.28,
-      y: s.y + (s.ty - s.y) * 0.28,
-      role: s.role,
-      i: s.i,
-    }
+    return { x: s.a.x + (s.b.x - s.a.x) * 0.72, y: s.a.y + (s.b.y - s.a.y) * 0.72, role: s.role, i: s.i }
+  }
+  canvas.__twigPoint = () => {
+    const s = sticks.find((st) => st.role === 'twig' && st.alive) || sticks.find((st) => st.role === 'branch' && st.alive)
+    if (!s) return null
+    return { x: s.a.x + (s.b.x - s.a.x) * 0.55, y: s.a.y + (s.b.y - s.a.y) * 0.55, role: s.role, i: s.i }
   }
 
   return () => {
@@ -1241,8 +1340,7 @@ export function mount(stage, { still, peek } = {}) {
     delete canvas.__scene
     delete canvas.__stats
     delete canvas.__limbPoint
-    delete canvas.__leafPoint
-    delete canvas.__trunkPoint
+    delete canvas.__twigPoint
     canvas.removeEventListener('pointerdown', onDown)
     canvas.removeEventListener('pointermove', onMove)
     canvas.removeEventListener('pointerup', onUp)
@@ -1251,6 +1349,7 @@ export function mount(stage, { still, peek } = {}) {
     window.removeEventListener('pointerup', onUp)
     window.removeEventListener('pointercancel', onUp)
     window.removeEventListener('keydown', onKey)
+    window.removeEventListener('playground-start', onStart)
     resetBtn?.removeEventListener('click', onReset)
     resetBtn?.remove()
   }

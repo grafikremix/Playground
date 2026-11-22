@@ -58,7 +58,6 @@ export function watchFrame(el, fn) {
   window.addEventListener('resize', onWin)
   window.addEventListener('orientationchange', onWin)
   vv?.addEventListener('resize', onWin)
-  vv?.addEventListener('scroll', onWin)
   const timers = [0, 50, 250].map((ms) => setTimeout(fn, ms))
   let tries = 0
   let raf = 0
@@ -75,6 +74,5 @@ export function watchFrame(el, fn) {
     window.removeEventListener('resize', onWin)
     window.removeEventListener('orientationchange', onWin)
     vv?.removeEventListener('resize', onWin)
-    vv?.removeEventListener('scroll', onWin)
   }
 }
