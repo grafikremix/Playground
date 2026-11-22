@@ -17,6 +17,7 @@ const SNOW_N = 56
 const SLICE_SPEED = 1.15
 const GRAB_SPEED = 0.62
 const KINDS = ['spring', 'summer', 'autumn', 'winter', 'pine']
+const TILE_SEED = 0xc0ffee
 
 const PAL = {
   spring: { wood: ICE, leaf: '#c8ffb0', leaf2: '#8dff9a', pine: false, weather: 'rain' },
@@ -266,9 +267,10 @@ export function mount(stage, { still, peek } = {}) {
       return 7
     }
     const winter = kind === 'winter'
-    if (depth < 2) return winter ? 0 : 2
-    if (depth === 2) return winter ? 2 : 5
-    return winter ? 2 : 4
+    const lush = winter && (peek || still)
+    if (depth < 2) return lush ? 4 : winter ? 0 : 2
+    if (depth === 2) return lush ? 7 : winter ? 2 : 5
+    return lush ? 6 : winter ? 2 : 4
   }
 
   function sprinkle(s, n, rnd) {
@@ -364,22 +366,24 @@ export function mount(stage, { still, peek } = {}) {
       trunk.push(st)
       prev = n
     }
+    const lush = (peek || still) && kind === 'winter'
     for (let i = 1; i < trunkN; i++) {
-      const nLimbs = i === 1 ? 2 : i >= 4 ? 3 : 2
-      const maxD = i >= 4 ? 4 : 3
+      const nLimbs = i === 1 ? 2 : i >= 4 ? (lush ? 4 : 3) : lush ? 3 : 2
+      const maxD = lush || i >= 4 ? 4 : 3
       for (let j = 0; j < nLimbs; j++) {
         const side = (i + j) % 2 === 0 ? -1 : 1
         const ang = -Math.PI / 2 + side * (0.42 + rnd() * 0.5 + (i === 1 ? 0.12 : 0))
-        const len = treeH * (0.22 + rnd() * 0.08 + (i >= 4 ? 0.04 : 0))
+        const len = treeH * (0.22 + rnd() * 0.08 + (i >= 4 ? 0.04 : 0) + (lush ? 0.03 : 0))
         growBranch(trunk[i].b, 1, maxD, ang, len, 5.4 - i * 0.32, rnd, trunk[i])
       }
     }
-    growBranch(prev, 1, 4, -Math.PI / 2 + (rnd() - 0.5) * 0.2, treeH * 0.2, 4.6, rnd, trunk[trunk.length - 1])
+    growBranch(prev, 1, 4, -Math.PI / 2 + (rnd() - 0.5) * 0.2, treeH * (lush ? 0.24 : 0.2), 4.6, rnd, trunk[trunk.length - 1])
     storeRest()
-    seedWeather()
+    seedWeather(rnd)
+    if (lush) dressTileWinter(rnd)
   }
 
-  function seedWeather() {
+  function seedWeather(rnd = Math.random) {
     rain.length = 0
     snow.length = 0
     puddles.length = 0
@@ -387,33 +391,47 @@ export function mount(stage, { still, peek } = {}) {
     if (pal.weather === 'rain') {
       for (let i = 0; i < RAIN_N; i++) {
         rain.push({
-          x: Math.random() * w,
-          y: Math.random() * h,
-          vy: 320 + Math.random() * 180,
-          len: 10 + Math.random() * 10,
+          x: rnd() * w,
+          y: rnd() * h,
+          vy: 320 + rnd() * 180,
+          len: 10 + rnd() * 10,
         })
       }
       for (let i = 0; i < 7; i++) {
         puddles.push({
-          x: w * (0.12 + i * 0.12) + (Math.random() - 0.5) * 18,
+          x: w * (0.12 + i * 0.12) + (rnd() - 0.5) * 18,
           y: ground + 6,
-          r: 6 + Math.random() * 8,
+          r: 6 + rnd() * 8,
           a: 0.18,
         })
       }
     }
     if (pal.weather === 'snow') {
-      for (let i = 0; i < SNOW_N; i++) {
+      const flakes = peek || still ? SNOW_N + 24 : SNOW_N
+      for (let i = 0; i < flakes; i++) {
         snow.push({
-          x: Math.random() * w,
-          y: Math.random() * h,
-          vx: (Math.random() - 0.5) * 18,
-          vy: 28 + Math.random() * 26,
-          r: 1.1 + Math.random() * 1.6,
+          x: rnd() * w,
+          y: rnd() * h,
+          vx: (rnd() - 0.5) * 18,
+          vy: 28 + rnd() * 26,
+          r: 1.1 + rnd() * 1.6,
         })
       }
       const bins = 28
       for (let i = 0; i < bins; i++) groundSnow.push(0)
+    }
+  }
+
+  function dressTileWinter(rnd = Math.random) {
+    const bins = groundSnow.length
+    for (let i = 0; i < bins; i++) {
+      const u = (i + 0.5) / Math.max(1, bins)
+      const dome = Math.max(0, 1 - Math.abs(u - 0.5) * 1.85)
+      groundSnow[i] = Math.min(18, 6.5 + dome * 10.5 + rnd() * 1.8)
+    }
+    for (const s of sticks) {
+      if (!s.alive) continue
+      s.snow = Math.max(s.snow || 0, 0.62 + rnd() * 0.38)
     }
   }
 
@@ -986,25 +1004,12 @@ export function mount(stage, { still, peek } = {}) {
     }
   }
 
+  function plantTile() {
+    grow('winter', TILE_SEED)
+  }
+
   function poseStill() {
-    grow('autumn', 42)
-    const limb = sticks.find((s) => s.role === 'limb' && s.alive && s.b.restX > w * 0.5) || sticks.find((s) => s.role === 'limb')
-    if (limb) {
-      limb.b.x += 86
-      limb.b.y += 110
-    }
-    for (const s of sticks) {
-      if (s.role === 'trunk') continue
-      let n = 0
-      for (const leaf of s.leaves) {
-        if (n++ % 3 === 0 && leaf.on) {
-          leaf.on = false
-          const p = leafWorld(s, leaf)
-          spawnFall(p.x, p.y + Math.random() * 40, 8, 20, { hue: leaf.hue, size: leaf.size })
-        }
-      }
-    }
-    for (const p of falling) p.y = ground * (0.45 + Math.random() * 0.35)
+    plantTile()
   }
 
   function poseScene(name) {
@@ -1343,7 +1348,10 @@ export function mount(stage, { still, peek } = {}) {
     const prevH = h
     const ok = layout()
     if (!ok) return
-    if (!nodes.length) grow(still ? 'autumn' : nextKind())
+    if (!nodes.length) {
+      if (peek || still) plantTile()
+      else grow(nextKind())
+    }
     else if (Math.abs(w - prevW) > 2 || Math.abs(h - prevH) > 2) {
       const sx = w / prevW
       const sy = treeH / Math.max(80, (prevH * 0.88 - (peek || still ? prevH * 0.05 : prevH * 0.1)) * 0.82)
@@ -1361,11 +1369,13 @@ export function mount(stage, { still, peek } = {}) {
   })
 
   layout()
-  grow(still ? 'autumn' : peek ? 'summer' : nextKind())
+  if (peek || still) plantTile()
+  else grow(nextKind())
   if (still) poseStill()
   last = performance.now()
   raf = requestAnimationFrame(tick)
   canvas.__scene = poseScene
+  canvas.__plant = (kindName, forcedSeed) => grow(kindName, forcedSeed)
   canvas.__stats = () => {
     let maxBend = 0
     let signed = 0
@@ -1387,11 +1397,25 @@ export function mount(stage, { still, peek } = {}) {
     const rainY = rain.map((d) => d.y)
     const tipNode = g?.node || lastTip || recoils.find((r) => r.node)?.node || sticks.find((st) => st.role === 'limb' && st.alive)?.b
     const tipSigned = tipNode ? tipNode.y - tipNode.restY : signed
+    let leaves = 0
+    let crownY = groundY
+    let minX = w
+    let maxX = 0
+    for (const s of sticks) {
+      if (!s.alive) continue
+      for (const leaf of s.leaves) if (leaf.on) leaves += 1
+      crownY = Math.min(crownY, s.a.y, s.b.y)
+      minX = Math.min(minX, s.a.x, s.b.x)
+      maxX = Math.max(maxX, s.a.x, s.b.x)
+    }
     return {
       kind,
       frames,
       maxBend,
       signed: tipSigned,
+      leaves,
+      crownY,
+      spread: maxX - minX,
       maxVel,
       role,
       grabCount: grabs.size,
@@ -1431,6 +1455,7 @@ export function mount(stage, { still, peek } = {}) {
     stopWatch()
     stopAmbient()
     delete canvas.__scene
+    delete canvas.__plant
     delete canvas.__stats
     delete canvas.__limbPoint
     delete canvas.__twigPoint
