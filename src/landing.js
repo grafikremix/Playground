@@ -2,10 +2,12 @@ import './styles.css'
 import { withBase, specimens } from './chrome.js'
 import { watchBuild } from './lib/fresh.js'
 import { mountCrt } from './lib/crt.js'
+import { mountTronBg } from './lib/tron-bg.js'
 import { canPlay, tone } from './lib/audio.js'
 
 watchBuild()
 mountCrt()
+mountTronBg()
 
 const TITLE = 'Radley’s\nAI Playground'
 const LEDES = [

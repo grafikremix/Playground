@@ -67,10 +67,6 @@ function ideaChrome(spec) {
       <div class="prompt-scroll">
         <h2 class="prompt-title" id="${id}-title">${escapeHtml(spec.title)}</h2>
         <p class="prompt-blurb">${escapeHtml(spec.blurb)}</p>
-        <div class="prompt-toggles">
-          ${edit ? playSwitchMarkup('prompt-switch') : ''}
-          ${soundSwitchMarkup()}
-        </div>
         <pre class="prompt-text" data-prompt></pre>
         <div class="prompt-meta">
           <p>Idea ${escapeHtml(spec.idea)}</p>
@@ -83,6 +79,10 @@ function ideaChrome(spec) {
           }
         </div>
       </div>
+      <footer class="prompt-footer">
+        ${edit ? playSwitchMarkup('prompt-switch') : ''}
+        ${soundSwitchMarkup()}
+      </footer>
     </div>
   `
 }
