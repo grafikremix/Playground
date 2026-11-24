@@ -350,7 +350,7 @@ html.is-js:not(.is-intro-done) .tile:not(.is-in) {
   opacity: 0;
   background: var(--bg);
   transition: opacity 0.35s ease, filter 0.35s ease;
-  filter: saturate(0.6);
+  filter: saturate(0.3);
 }
 
 .tile.is-peek .tile-peek {
@@ -381,7 +381,7 @@ html.is-js:not(.is-intro-done) .tile:not(.is-in) {
   -webkit-user-drag: none;
   -webkit-user-select: none;
   user-select: none;
-  filter: saturate(0.6);
+  filter: saturate(0.3);
   transition: filter 0.35s ease;
 }
 
