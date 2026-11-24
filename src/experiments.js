@@ -164,7 +164,7 @@ export const experiments = [
     hint: '',
     full: true,
     stillWait: 720,
-    crop: { x: 0.38, y: 0.46, z: 1.12 },
+    crop: { x: 0.5, y: 0.46, z: 1 },
   },
 ]
 

@@ -44,7 +44,11 @@ export function mount(stage, { still, peek } = {}) {
   const wave = dock.querySelector('.sb-wave')
   const wctx = wave.getContext('2d')
 
-  const cam = preview ? { x: -8, y: 22, s: 1.08, vx: 0, vy: 0 } : { x: 18, y: 18, s: 1, vx: 0, vy: 0 }
+  const cam = still
+    ? { x: 78, y: 156, s: 0.66, vx: 0, vy: 0 }
+    : peek
+      ? { x: 28, y: 72, s: 0.5, vx: 0, vy: 0 }
+      : { x: 18, y: 18, s: 1, vx: 0, vy: 0 }
   let stack = preview ? ['open-lofi', 'ambient-lofi'] : []
   let playing = preview ? findNode('ol-deep-space-loop') : null
   let paused = false
