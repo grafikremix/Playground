@@ -153,6 +153,19 @@ export const experiments = [
     stillWait: 640,
     crop: { x: 0.5, y: 0.54, z: 1.02 },
   },
+  {
+    slug: 'sound-browser',
+    title: 'sound browser',
+    blurb: 'Browse loops. Pan the tree.',
+    prompt:
+      'You mentioned 8 GitHub repos which is sparking an idea. Let’s use zzfmx, tone.js, open lo-fi, plinkfx and see what we can pull from them. I’d likeu to list each repo and when a user selects a repo, you list either a hierarchy of folders until you get to the audio that can be played. When the audio is played have a line wave animation to signal that the audio is playing. Also have a play/pause toggle on the bottom of the screen for the audio. Audio should loop as well. I’m picturing an info hierarchy navigation type of interaction. Start off with a parent list and as a selection is made its children appear on the right side. If more hierarchy is needed, more levels appear to the right. If the amount of hierarchy levels succeed the browser width or height, the browser will pan over to the deepest level in the hierarchy. Here’s the interaction surprise. The user can move the navigation around to view the different parts of the hierarchy to view it. The user can even pinch or expand to zoom in and out with a min and max so the user can’t zoom into the smallest pixel or zoom out infinitely. For folders show a folder icon and for audio show an audio file icon. If the user goes back in the navigation stack and selects something else colapse the stack to where the selection is made. Always credit the author of the music/sounds and link to the appropriate GitHub page. If we can’t use the GitHub repositories to how I’m describing or if I’m misunderstanding how they should be used, let’s disambiguate to better craft this prompt to what we can do with the repos and how they should be used.',
+    author: 'Radley',
+    date: '2026-11-24',
+    hint: '',
+    full: true,
+    stillWait: 720,
+    crop: { x: 0.38, y: 0.46, z: 1.12 },
+  },
 ]
 
 export const specimens = experiments.map((e, i) => ({

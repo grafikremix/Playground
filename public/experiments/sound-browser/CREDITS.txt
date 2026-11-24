@@ -1,0 +1,23 @@
+sound browser — sources and licenses (verified 2026-11-24)
+
+1. Open Lo-Fi — https://github.com/btahir/open-lofi
+   License: CC0 1.0 (open-lofi/LICENSE, confirmed from GitHub)
+   Author: btahir
+   Vendored: 10 MP3s in 3 category folders, trimmed to 16s / 64kbps mono.
+
+2. plinkfx — https://github.com/maximilianfeix/plinkfx
+   Engine: MIT (licenses/plinkfx-LICENSE)
+   Sounds: CC0 1.0 (licenses/plinkfx-LICENSE-SOUNDS)
+   Author: Maximilian Feix
+   Used as generated code via the npm package, not audio files.
+
+3. ZzFXM — https://github.com/keithclark/ZzFXM
+   License: MIT (licenses/zzfxm-LICENSE)
+   Player: Keith Clark and Frank Force (src/lib/zzfxm.js)
+   Songs: original icy loops by Radley’s AI Playground
+   Not used: keithclark/zzfxm-songs (GitHub license field is empty)
+
+4. Tone.js — https://github.com/Tonejs/Tone.js
+   License: MIT (licenses/tone-LICENSE.md)
+   Author: Yotam Mann and contributors
+   npm package tone, named imports for the generative patches
