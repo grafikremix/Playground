@@ -58,6 +58,8 @@ export function mount(stage, { still, peek } = {}) {
   let zoomPan = 0
   const cache = new Map()
   const pts = new Map()
+  let toneMod = null
+  let tonePromise = null
   let moved = 0
   let lastMoved = 0
   let lastPan = false
@@ -269,17 +271,70 @@ export function mount(stage, { still, peek } = {}) {
     return null
   }
 
-  async function startTone(node, ctx, busNode) {
-    const { Synth, NoiseSynth, Filter, LFO, Loop, Transport, Gain, setContext } = await import('tone')
-    setContext(ctx, false)
-    Transport.stop()
-    Transport.cancel()
-    const g = new Gain(0.22).connect(busNode)
-    const parts = []
+  function loadTone() {
+    if (!tonePromise) {
+      if (typeof window !== 'undefined') window.TONE_SILENCE_LOGGING = true
+      tonePromise = import('tone').then((mod) => {
+        toneMod = mod
+        return mod
+      })
+    }
+    return tonePromise
+  }
+
+  function applyToneContext(ctx) {
+    if (!toneMod || !ctx) return
+    const current = toneMod.getContext?.()
+    if (current?.rawContext !== ctx) {
+      try {
+        toneMod.setContext(ctx)
+      } catch {
+        toneMod.setContext(new toneMod.Context({ context: ctx }))
+      }
+    }
+    if (!toneMod.getContext?.()?.transport) {
+      toneMod.setContext(new toneMod.Context({ context: ctx }))
+    }
+    try {
+      toneMod.start()
+    } catch {
+      /* resume is best-effort; our ctx is already unlocked */
+    }
+  }
+
+  function readRms() {
+    if (!analyser) return 0
+    const data = new Uint8Array(analyser.fftSize)
+    try {
+      analyser.getByteTimeDomainData(data)
+    } catch {
+      return 0
+    }
+    let sum = 0
+    for (let i = 0; i < data.length; i++) {
+      const v = (data[i] - 128) / 128
+      sum += v * v
+    }
+    return Math.sqrt(sum / data.length)
+  }
+
+  function startTone(node, ctx, busNode) {
+    applyToneContext(ctx)
+    const Tone = toneMod
+    const transport = Tone.getTransport()
+    try {
+      transport.stop()
+      transport.cancel()
+    } catch {
+      /* first run has nothing to stop */
+    }
+    const g = new Tone.Gain(node.patch === 'crt-hum' ? 0.7 : 0.22)
+    g.connect(busNode)
+    const parts = [g]
     const stop = () => {
       try {
-        Transport.stop()
-        Transport.cancel()
+        transport.stop()
+        transport.cancel()
       } catch {
         /* */
       }
@@ -292,65 +347,63 @@ export function mount(stage, { still, peek } = {}) {
       }
     }
     if (node.patch === 'icy-pad') {
-      const a = new Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.4, decay: 0.2, sustain: 0.7, release: 1.4 } }).connect(g)
-      const b = new Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.5, decay: 0.2, sustain: 0.7, release: 1.6 } }).connect(g)
-      const f = new Filter(720, 'lowpass').connect(g)
-      a.disconnect()
-      b.disconnect()
+      const a = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.12, decay: 0.2, sustain: 0.7, release: 1.4 } })
+      const b = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.16, decay: 0.2, sustain: 0.7, release: 1.6 } })
+      const f = new Tone.Filter(720, 'lowpass')
       a.connect(f)
       b.connect(f)
-      const lfo = new LFO(0.08, 420, 980).connect(f.frequency)
+      f.connect(g)
+      const lfo = new Tone.LFO(0.08, 420, 980).connect(f.frequency)
       lfo.start()
       parts.push(a, b, f, lfo)
-      const loop = new Loop((time) => {
+      const loop = new Tone.Loop((time) => {
         a.triggerAttackRelease('C3', '2n', time, 0.35)
         b.triggerAttackRelease('G3', '2n', time, 0.22)
       }, '1m')
       loop.start(0)
       parts.push(loop)
     } else if (node.patch === 'glass-room') {
-      const s = new Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.08, decay: 0.3, sustain: 0.2, release: 1.2 } }).connect(g)
+      const s = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.08, decay: 0.3, sustain: 0.2, release: 1.2 } })
+      s.connect(g)
       parts.push(s)
       const notes = ['E4', 'B4', 'G4', 'D5']
       let i = 0
-      const loop = new Loop((time) => {
+      const loop = new Tone.Loop((time) => {
         s.triggerAttackRelease(notes[i % notes.length], '4n', time, 0.28)
         i += 1
       }, '2n')
       loop.start(0)
       parts.push(loop)
     } else if (node.patch === 'slow-arp') {
-      const s = new Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.12, sustain: 0.05, release: 0.3 } }).connect(g)
-      const f = new Filter(1800, 'lowpass').connect(g)
-      s.disconnect()
+      const s = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.12, sustain: 0.05, release: 0.3 } })
+      const f = new Tone.Filter(1800, 'lowpass')
       s.connect(f)
+      f.connect(g)
       parts.push(s, f)
       const notes = ['C3', 'G3', 'C4', 'D4', 'G3']
       let i = 0
-      const loop = new Loop((time) => {
+      const loop = new Tone.Loop((time) => {
         s.triggerAttackRelease(notes[i % notes.length], '8n', time, 0.22)
         i += 1
       }, '4n')
       loop.start(0)
       parts.push(loop)
     } else {
-      const n = new NoiseSynth({ noise: { type: 'brown' }, envelope: { attack: 0.2, decay: 0.05, sustain: 0.4, release: 0.4 } }).connect(g)
-      const f = new Filter(380, 'bandpass')
-      n.disconnect()
+      const n = new Tone.NoiseSynth({ noise: { type: 'brown' }, envelope: { attack: 0.04, decay: 0.05, sustain: 0.7, release: 0.3 } })
+      const f = new Tone.Filter({ frequency: 420, type: 'bandpass', Q: 0.8 })
       n.connect(f)
       f.connect(g)
-      const lfo = new LFO(1.4, 220, 620).connect(f.frequency)
+      const lfo = new Tone.LFO(1.4, 220, 620).connect(f.frequency)
       lfo.start()
       parts.push(n, f, lfo)
-      const loop = new Loop((time) => {
-        n.triggerAttackRelease('2n', time, 0.5)
+      const loop = new Tone.Loop((time) => {
+        n.triggerAttackRelease('2n', time, 0.85)
       }, '2n')
       loop.start(0)
       parts.push(loop)
     }
-    parts.push(g)
-    Transport.bpm.value = 72
-    Transport.start()
+    transport.bpm.value = 72
+    transport.start()
     return { stop }
   }
 
@@ -370,7 +423,10 @@ export function mount(stage, { still, peek } = {}) {
       const g = graph()
       if (!g) return
       if (node.engine === 'tone') {
-        tonePatch = await startTone(node, g.ctx, g.bus)
+        if (!toneMod) await loadTone()
+        if (playing?.id !== node.id) return
+        applyToneContext(g.ctx)
+        tonePatch = startTone(node, g.ctx, g.bus)
         return
       }
       const buf = await bufferFor(node, g.ctx)
@@ -550,6 +606,7 @@ export function mount(stage, { still, peek } = {}) {
   }
   raf = requestAnimationFrame(tick)
 
+  if (!preview) loadTone().catch(() => {})
   paint()
   applyCam()
   if (preview && playing) {
@@ -573,6 +630,9 @@ export function mount(stage, { still, peek } = {}) {
     paused,
     loop: !!(source && source.loop) || !!(playing && playing.engine === 'tone' && !paused),
     wave: !!(analyser && playing && !paused),
+    rms: readRms(),
+    ctxState: getContext()?.state || null,
+    toneBound: !!(toneMod && getContext() && toneMod.getContext?.()?.rawContext === getContext()),
     lastMoved,
     lastPan,
     pe: getComputedStyle(wrap).pointerEvents,
@@ -602,11 +662,13 @@ export function mount(stage, { still, peek } = {}) {
     },
     select,
     find: findNode,
+    rms: readRms,
   }
 
   function onStart() {
     if (preview) return
     paint()
+    loadTone().then(() => applyToneContext(getContext())).catch(() => {})
   }
   window.addEventListener('playground-start', onStart)
 
