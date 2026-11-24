@@ -55,6 +55,7 @@ export function mount(stage, { still, peek } = {}) {
   let raf = 0
   let mom = 0
   let panAnim = 0
+  let zoomPan = 0
   const cache = new Map()
   const pts = new Map()
   let moved = 0
@@ -152,6 +153,15 @@ export function mount(stage, { still, peek } = {}) {
     panAnim = requestAnimationFrame(tick)
   }
 
+  function scheduleEnsure() {
+    if (preview) return
+    if (zoomPan) clearTimeout(zoomPan)
+    zoomPan = window.setTimeout(() => {
+      zoomPan = 0
+      ensureDeepest()
+    }, 80)
+  }
+
   function zoomAt(sx, sy, factor) {
     stopPanAnim()
     const wr = wrap.getBoundingClientRect()
@@ -165,6 +175,7 @@ export function mount(stage, { still, peek } = {}) {
     cam.x = px - wx * s2
     cam.y = py - wy * s2
     applyCam()
+    scheduleEnsure()
   }
 
   function select(id, depth) {
@@ -456,7 +467,10 @@ export function mount(stage, { still, peek } = {}) {
         cam.y += cam.vy
         applyCam()
         if (Math.hypot(cam.vx, cam.vy) > 0.18) mom = requestAnimationFrame(decay)
-        else mom = 0
+        else {
+          mom = 0
+          if (lastPinch) scheduleEnsure()
+        }
       }
       if (mom) cancelAnimationFrame(mom)
       mom = requestAnimationFrame(decay)
@@ -583,6 +597,7 @@ export function mount(stage, { still, peek } = {}) {
       stopPanAnim()
       cam.s = clamp(s, MIN_S, MAX_S)
       applyCam()
+      scheduleEnsure()
       return cam.s
     },
     select,
@@ -599,6 +614,7 @@ export function mount(stage, { still, peek } = {}) {
     window.removeEventListener('playground-start', onStart)
     cancelAnimationFrame(raf)
     if (mom) cancelAnimationFrame(mom)
+    if (zoomPan) clearTimeout(zoomPan)
     stopPanAnim()
     stopSrc()
     wrap.removeEventListener('pointerdown', onWrapDown)
