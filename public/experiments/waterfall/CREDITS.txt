@@ -1,0 +1,8 @@
+waterfall — sources and licenses (verified 2026-11-24)
+
+1. plinkfx — https://github.com/maximilianfeix/plinkfx
+   Engine: MIT (licenses/plinkfx-LICENSE)
+   Sounds: CC0 1.0 (licenses/plinkfx-LICENSE-SOUNDS)
+   Author: Maximilian Feix
+   Used as generated code via the npm package, not audio files.
+   Water, splash, drip and rain-loop sounds play at runtime.

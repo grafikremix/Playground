@@ -15,6 +15,18 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;')
 }
 
+function creditMarkup(credits) {
+  return credits
+    .map((c) => {
+      const name = escapeHtml(c.name || 'plinkfx')
+      const author = escapeHtml(c.author || '')
+      const href = escapeHtml(c.href || 'https://github.com/maximilianfeix/plinkfx')
+      const label = escapeHtml(c.label || 'Sound')
+      return `<p>${label} <a class="prompt-credit-link" href="${href}" target="_blank" rel="noopener">${name}</a>${author ? ` by ${author}` : ''}</p>`
+    })
+    .join('')
+}
+
 function playSwitchMarkup(extraClass = '', label = 'Original / Edit') {
   const cls = ['play-switch', extraClass].filter(Boolean).join(' ')
   return `<button
@@ -70,6 +82,7 @@ function ideaChrome(spec) {
         ${edit ? `<div class="prompt-toggles">${playSwitchMarkup('prompt-switch')}</div>` : ''}
         <pre class="prompt-text" data-prompt></pre>
         <div class="prompt-meta" data-prompt-meta></div>
+        ${Array.isArray(spec.credits) && spec.credits.length ? `<div class="prompt-credit" data-prompt-credit>${creditMarkup(spec.credits)}</div>` : ''}
       </div>
       <footer class="prompt-footer">
         ${soundSwitchMarkup()}

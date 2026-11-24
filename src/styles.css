@@ -592,6 +592,23 @@ html.is-js:not(.is-intro-done) .tile:not(.is-in) {
   color: inherit;
 }
 
+.prompt-credit {
+  margin: 10px 0 0;
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--p-soft);
+  line-height: 1.45;
+}
+
+.prompt-credit p {
+  margin: 0;
+}
+
+.prompt-credit-link {
+  color: var(--p-hi);
+}
+
 .chrome {
   position: relative;
   display: flex;
@@ -972,7 +989,9 @@ body.is-full .prompt-window,
 body.is-full .prompt-footer,
 body.is-full .prompt-scroll,
 body.is-full .sb-wrap,
-body.is-full .sb-dock {
+body.is-full .sb-dock,
+body.is-full .wf-hud,
+body.is-full .wf-hud button {
   pointer-events: auto;
 }
 
@@ -1216,7 +1235,9 @@ body.is-still .settings-open,
 body.is-still .refresh,
 body.is-still .start,
 body.is-still .timer,
-body.is-still .hint {
+body.is-still .hint,
+body.is-still .wf-hud,
+body.is-peek .wf-hud {
   display: none !important;
 }
 body.is-still .site { padding: 24px; max-width: 760px; margin: 0 auto; }
@@ -1458,5 +1479,75 @@ body.is-peek .sb-wrap {
 .sb-head-link:focus-visible {
   outline: 1px solid var(--p);
   outline-offset: 2px;
+}
+
+.wf-hud {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px 12px;
+  padding: 8px 12px max(10px, env(safe-area-inset-bottom));
+  pointer-events: none;
+  background: linear-gradient(to top, rgba(2, 5, 12, 0.72), rgba(2, 5, 12, 0));
+}
+
+.wf-gauge,
+.wf-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.wf-gauge-k {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: var(--hud-ink);
+  margin-right: 4px;
+}
+
+.wf-hud button {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 12px;
+  margin: 0;
+  border: var(--border-hairline);
+  background: var(--hud-fill);
+  color: var(--p-soft);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  cursor: pointer;
+  pointer-events: auto;
+  border-radius: 2px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.wf-hud button.is-on,
+.wf-reset {
+  color: var(--p-hi);
+}
+
+.wf-hud button:focus-visible {
+  outline: 1px solid var(--p);
+  outline-offset: 2px;
+}
+
+body.is-waiting .wf-hud {
+  visibility: hidden;
+  pointer-events: none;
 }
 

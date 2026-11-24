@@ -166,6 +166,27 @@ export const experiments = [
     stillWait: 720,
     crop: { x: 0.5, y: 0.46, z: 1 },
   },
+  {
+    slug: 'waterfall',
+    title: 'waterfall',
+    blurb: 'Draw a path. Water follows.',
+    prompt:
+      'I have this idea of water flowing vertically. Almost like a waterfall. The user can manipulate the water falling by drawing lines on the canvas. Could be straight lines, curved lines, any type of drawings pretty much which would make the flowing water react with real water physics. Physics examples: If the user were to make a hard straight line perpendicular to where the water falls then the water would splash off the line creating two more areas for the water to flow on either end. Oppositely, the user might draw gentle slides for the water to travel down creating minimal splash. If the user were to draw a bowl like line, then the water would collect until it couldn’t hold the water any more. Interaction details: the water would flow from the top middle of the screen. Create a UI gauge that would determine the pressure of the water. Three settings, Slow, medium, fast. The canvas can scroll vertically. Because the user can draw lines the vertical scroll must be controlled by two finger touch or arrow keys on a keyboard. Vertical scroll has a limit and at the bottom of the scroll is a pool of water with small sail boats that react to the water being poured on them. Use the plinkfx sound library for water sound fx. Credit them in the prompt window.',
+    author: 'Radley',
+    date: '2026-11-24',
+    hint: '',
+    full: true,
+    stillWait: 900,
+    crop: { x: 0.52, y: 0.22, z: 1.38 },
+    credits: [
+      {
+        label: 'Sound',
+        name: 'plinkfx',
+        author: 'Maximilian Feix',
+        href: 'https://github.com/maximilianfeix/plinkfx',
+      },
+    ],
+  },
 ]
 
 export const specimens = experiments.map((e, i) => ({
