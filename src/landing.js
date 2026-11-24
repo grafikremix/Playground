@@ -7,7 +7,7 @@ import { canPlay, tone } from './lib/audio.js'
 watchBuild()
 mountCrt()
 
-const TITLE = 'Radley’s\u00a0AI\u00a0Playground'
+const TITLE = 'Radley’s\nAI Playground'
 const LEDES = [
   'An interactive AI playground for my random ideas. My only rule: I prompt once and allow myself just one edit. Most ideas are from me but sometimes I’ll have a special guest!',
   'Random ideas from my head, made interactive with AI. One prompt, one edit, that’s the rule. Mostly mine, with the occasional special guest.',
@@ -94,13 +94,36 @@ function cadence(ch, n, budget) {
   return Math.max(7, base * m)
 }
 
+function fillTyped(el, text) {
+  el.replaceChildren()
+  String(text)
+    .split('\n')
+    .forEach((part, i) => {
+      if (i) el.appendChild(document.createElement('br'))
+      if (part) el.append(part)
+    })
+}
+
+function parkCaret(line) {
+  if (!line) return
+  let caret = document.querySelector('.mast .type-caret')
+  if (!caret) {
+    caret = document.createElement('span')
+    caret.className = 'type-caret'
+    caret.setAttribute('aria-hidden', 'true')
+  }
+  line.appendChild(caret)
+}
+
 async function typeInto(el, text, budget) {
+  el.replaceChildren()
   const chars = [...text]
-  el.textContent = ''
   for (let i = 0; i < chars.length; i++) {
-    el.textContent += chars[i]
+    const ch = chars[i]
+    if (ch === '\n') el.appendChild(document.createElement('br'))
+    else el.append(ch)
     keyTick()
-    await wait(cadence(chars[i], chars.length, budget))
+    await wait(cadence(ch, chars.length, budget))
   }
 }
 
@@ -204,27 +227,22 @@ async function playIntro() {
   paintLede(lede)
 
   if (!titleOut || !ledeOut || reduced || !replay) {
-    if (titleOut) titleOut.textContent = TITLE
-    if (ledeOut) ledeOut.textContent = lede
+    if (titleOut) fillTyped(titleOut, TITLE)
+    if (ledeOut) fillTyped(ledeOut, lede)
+    parkCaret(ledeLine)
     revealTiles()
     return
   }
 
-  const caret = document.createElement('span')
-  caret.className = 'type-caret'
-  caret.setAttribute('aria-hidden', 'true')
-  titleOut.textContent = ''
-  ledeOut.textContent = ''
-  titleLine.appendChild(caret)
+  titleOut.replaceChildren()
+  ledeOut.replaceChildren()
+  parkCaret(titleLine)
 
   await typeInto(titleOut, TITLE, 980)
   await wait(140)
-  ledeLine.appendChild(caret)
+  parkCaret(ledeLine)
   await typeInto(ledeOut, lede, 1680)
-  await wait(90)
-  caret.classList.add('is-out')
-  await wait(320)
-  caret.remove()
+  parkCaret(ledeLine)
   revealTiles()
 }
 

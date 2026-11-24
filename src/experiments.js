@@ -3,10 +3,10 @@
 // 2. src/specimens/<slug>.js  +  src/pages/<slug>.js  +  specimens/<slug>.html
 //    (an edit also needs src/specimens/<slug>.original.js)
 // 3. npm run stills
-// 4. synthesized Web Audio for each action (unlock on touchstart/touchmove/touchend/pointerup/click until ctx is running; iPhone haptic fallback; honor the Settings sound toggle)
+// 4. synthesized Web Audio for each action (unlock on touchstart/touchmove/touchend/pointerup/click until ctx is running; iPhone haptic fallback; honor the prompt-window Sound On/Off toggle)
 // 5. every idea is always dark Tron / Ice (techno, electric 80s: neon glow lines, near-black bg, grid/vector feel, synthy sound) plus a shared CRT tube texture (scanlines/phosphor, ice-blue palette unchanged) regardless of the style the prompt asks for
 // 6. wait for the shared template Start (isLive() in src/lib/play.js). Peek and stills skip it. Runner may show Start again after death. Homepage tiles (peek iframes and captured stills) must never draw in-game score / hits / best / counters — use showScoreHud() from src/lib/play.js; tile title and tagline stay readable on top of the preview.
-// 7. `author` (defaults to Radley). Optional `edit: { text, date, author }` — at most one. An edited idea keeps both playable versions behind Settings → Version Original / Edit (and the same switch in the prompt window). Default is Edit. `src/specimens/<slug>.original.js` holds the original mount; the current specimen is the edit. Prompt text stays verbatim.
+// 7. `author` (defaults to Radley). Optional `edit: { text, date, author }` — at most one. An edited idea keeps both playable versions behind Original / Edit in the prompt window. Default is Edit. `src/specimens/<slug>.original.js` holds the original mount; the current specimen is the edit. Prompt text stays verbatim.
 //
 // {
 //   slug: 'example',

@@ -15,13 +15,6 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;')
 }
 
-function cogMarkup() {
-  return `<svg class="cog-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-    <circle cx="12" cy="12" r="2.35" fill="none" stroke="currentColor" stroke-width="1.15"/>
-    <path fill="none" stroke="currentColor" stroke-width="1.15" stroke-linejoin="round" d="M12 3.2l.95 2.28 2.38-.62.62 2.38 2.28.95-.95 1.95L19.8 12l-2.52 1.86.95 1.95-2.28.95-.62 2.38-2.38-.62L12 20.8l-.95-2.28-2.38.62-.62-2.38-2.28-.95.95-1.95L4.2 12l2.52-1.86-.95-1.95 2.28-.95.62-2.38 2.38.62z"/>
-  </svg>`
-}
-
 function playSwitchMarkup(extraClass = '', label = 'Original / Edit') {
   const cls = ['play-switch', extraClass].filter(Boolean).join(' ')
   return `<button
@@ -41,42 +34,32 @@ function playSwitchMarkup(extraClass = '', label = 'Original / Edit') {
 function soundSwitchMarkup() {
   const on = soundOn()
   return `<button
-    class="play-switch settings-row${on ? ' is-on' : ''}"
+    class="play-switch prompt-switch${on ? ' is-on' : ''}"
     type="button"
     role="switch"
     aria-checked="${on ? 'true' : 'false'}"
     aria-label="Sound"
     data-sound-switch
   >
-    <span class="settings-k">Sound</span>
-    <span class="settings-v">
-      <span data-side="on">On</span>
-      <span class="prompt-switch-rule" aria-hidden="true">/</span>
-      <span data-side="off">Off</span>
-    </span>
+    <span class="prompt-switch-k">Sound</span>
+    <span data-side="on">On</span>
+    <span class="prompt-switch-rule" aria-hidden="true">/</span>
+    <span data-side="off">Off</span>
   </button>`
 }
 
 function ideaChrome(spec) {
   const id = `prompt-window-${spec.slug}`
-  const settingsId = `settings-window-${spec.slug}`
   const edit = spec.edit && spec.edit.text
   const author = spec.author || 'Radley'
   return `
     <nav class="chrome">
       <a class="back" href="${withBase('')}">← Back</a>
-      <span class="idea-hud">${escapeHtml(spec.title)}</span>
+      <span class="idea-hud"><span data-hud-title></span></span>
       <div class="chrome-end">
         <button class="prompt-open" type="button" aria-expanded="false" aria-controls="${id}">
           Prompt
         </button>
-        <button
-          class="settings-open"
-          type="button"
-          aria-label="Settings"
-          aria-expanded="false"
-          aria-controls="${settingsId}"
-        >${cogMarkup()}</button>
       </div>
     </nav>
     <div class="prompt-window" id="${id}" role="dialog" aria-modal="false" aria-labelledby="${id}-title" hidden>
@@ -84,7 +67,10 @@ function ideaChrome(spec) {
       <div class="prompt-scroll">
         <h2 class="prompt-title" id="${id}-title">${escapeHtml(spec.title)}</h2>
         <p class="prompt-blurb">${escapeHtml(spec.blurb)}</p>
-        ${edit ? playSwitchMarkup('prompt-switch') : ''}
+        <div class="prompt-toggles">
+          ${edit ? playSwitchMarkup('prompt-switch') : ''}
+          ${soundSwitchMarkup()}
+        </div>
         <pre class="prompt-text" data-prompt></pre>
         <div class="prompt-meta">
           <p>Idea ${escapeHtml(spec.idea)}</p>
@@ -96,31 +82,6 @@ function ideaChrome(spec) {
               : ''
           }
         </div>
-      </div>
-    </div>
-    <div class="settings-window" id="${settingsId}" role="dialog" aria-modal="false" aria-label="Settings" hidden>
-      <button class="prompt-close settings-close" type="button" aria-label="Close">×</button>
-      <div class="settings-scroll">
-        ${soundSwitchMarkup()}
-        ${
-          edit
-            ? `<button
-            class="play-switch settings-row"
-            type="button"
-            role="switch"
-            aria-checked="true"
-            aria-label="Original / Edit"
-            data-play-switch
-          >
-            <span class="settings-k">Version</span>
-            <span class="settings-v">
-              <span data-side="original">Original</span>
-              <span class="prompt-switch-rule" aria-hidden="true">/</span>
-              <span data-side="edit">Edit</span>
-            </span>
-          </button>`
-            : ''
-        }
       </div>
     </div>
   `
@@ -144,6 +105,37 @@ function focusables(win) {
 function sfxSwitch() {
   unlock()
   tone({ type: 'sine', freq: 980, duration: 0.045, peak: 0.045 })
+}
+
+function wait(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
+}
+
+function typeHudTitle(hud, text) {
+  if (!hud) return
+  const host = hud.querySelector('[data-hud-title]') || hud
+  let caret = hud.querySelector('.type-caret')
+  if (!caret) {
+    caret = document.createElement('span')
+    caret.className = 'type-caret'
+    caret.setAttribute('aria-hidden', 'true')
+    hud.appendChild(caret)
+  }
+  const reduced =
+    typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+  if (reduced) {
+    host.textContent = text
+    return
+  }
+  host.textContent = ''
+  const chars = [...text]
+  const budget = Math.min(720, 90 + chars.length * 42)
+  ;(async () => {
+    for (let i = 0; i < chars.length; i++) {
+      host.textContent += chars[i]
+      await wait(Math.max(18, budget / Math.max(1, chars.length)))
+    }
+  })()
 }
 
 function normalizeMounts(mounts) {
@@ -296,15 +288,13 @@ export function boot(slug, mounts) {
   paintSwitches(app)
   paintPrompt(app)
   paintSound(app)
+  if (!still) typeHudTitle(app.querySelector('.idea-hud'), spec.title)
 
   const promptOpen = app.querySelector('.prompt-open')
   const promptWin = app.querySelector('.prompt-window')
   const promptClose = app.querySelector('.prompt-close')
-  const settingsOpen = app.querySelector('.settings-open')
-  const settingsWin = app.querySelector('.settings-window')
-  const settingsClose = app.querySelector('.settings-close')
 
-  const overlayOpen = () => Boolean((promptWin && !promptWin.hidden) || (settingsWin && !settingsWin.hidden))
+  const overlayOpen = () => Boolean(promptWin && !promptWin.hidden)
 
   const syncPause = () => {
     document.body.classList.toggle('is-prompt', overlayOpen())
@@ -321,7 +311,6 @@ export function boot(slug, mounts) {
 
   const setPrompt = (on) => {
     if (!promptWin || !promptOpen) return
-    if (on) setSettings(false)
     promptWin.hidden = !on
     promptOpen.setAttribute('aria-expanded', String(on))
     promptWin.setAttribute('aria-modal', on ? 'true' : 'false')
@@ -330,43 +319,19 @@ export function boot(slug, mounts) {
     else promptOpen.focus()
   }
 
-  const setSettings = (on) => {
-    if (!settingsWin || !settingsOpen) return
-    if (on) setPrompt(false)
-    settingsWin.hidden = !on
-    settingsOpen.setAttribute('aria-expanded', String(on))
-    settingsWin.setAttribute('aria-modal', on ? 'true' : 'false')
-    syncPause()
-    if (on) settingsClose?.focus()
-    else settingsOpen.focus()
-  }
-
   promptOpen?.addEventListener('click', () => setPrompt(promptWin.hidden))
   promptClose?.addEventListener('click', () => setPrompt(false))
-  settingsOpen?.addEventListener('click', () => {
-    sfxSwitch()
-    setSettings(settingsWin.hidden)
-  })
-  settingsClose?.addEventListener('click', () => setSettings(false))
-
-  document.addEventListener('pointerdown', (e) => {
-    if (!settingsWin || settingsWin.hidden) return
-    if (settingsWin.contains(e.target) || settingsOpen.contains(e.target)) return
-    setSettings(false)
-  })
 
   document.addEventListener('keydown', (e) => {
-    const win = !settingsWin?.hidden ? settingsWin : !promptWin?.hidden ? promptWin : null
+    const win = promptWin && !promptWin.hidden ? promptWin : null
     if (!win) return
     if (e.key === 'Escape') {
       e.preventDefault()
-      if (win === settingsWin) setSettings(false)
-      else setPrompt(false)
+      setPrompt(false)
       return
     }
     if (e.key !== 'Tab') return
-    const closeBtn = win === settingsWin ? settingsClose : promptClose
-    const nodes = trap(win, closeBtn)
+    const nodes = trap(win, promptClose)
     if (!nodes) {
       e.preventDefault()
       return
@@ -386,11 +351,10 @@ export function boot(slug, mounts) {
   })
 
   document.addEventListener('focusin', (e) => {
-    const win = !settingsWin?.hidden ? settingsWin : !promptWin?.hidden ? promptWin : null
+    const win = promptWin && !promptWin.hidden ? promptWin : null
     if (!win) return
     if (win.contains(e.target)) return
-    const closeBtn = win === settingsWin ? settingsClose : promptClose
-    closeBtn?.focus()
+    promptClose?.focus()
   })
 
   if (!still) {
