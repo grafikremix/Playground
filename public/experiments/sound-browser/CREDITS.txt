@@ -3,7 +3,7 @@ sound browser — sources and licenses (verified 2026-11-24)
 1. Open Lo-Fi — https://github.com/btahir/open-lofi
    License: CC0 1.0 (open-lofi/LICENSE, confirmed from GitHub)
    Author: btahir
-   Vendored: 10 MP3s in 3 category folders, trimmed to 16s / 64kbps mono.
+   Vendored: 28 MP3s in 6 category folders, trimmed to 16s / 64kbps mono.
 
 2. plinkfx — https://github.com/maximilianfeix/plinkfx
    Engine: MIT (licenses/plinkfx-LICENSE)

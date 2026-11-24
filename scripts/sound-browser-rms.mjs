@@ -7,12 +7,14 @@ const BASE = process.env.SB_BASE || 'http://127.0.0.1:5173'
 const MIN_RMS = Number(process.env.SB_MIN_RMS || 0.01)
 
 const CASES = [
-  { name: 'open-lofi', steps: [['open-lofi', 0], ['ambient-lofi', 1], ['ol-deep-space-loop', 2]] },
-  { name: 'plinkfx', steps: [['plinkfx', 0], ['px-ice', 1], ['px-snd-ice', 2]] },
+  { name: 'open-lofi', steps: [['open-lofi', 0], ['ol-drift', 1], ['ambient-lofi', 2], ['ol-deep-space-loop', 3]] },
+  { name: 'open-lofi-new', steps: [['open-lofi', 0], ['ol-day', 1], ['seasonal-weather', 2], ['ol-snow-on-the-needle', 3]] },
+  { name: 'plinkfx', steps: [['plinkfx', 0], ['px-ice', 1], ['px-ice-crystal', 2], ['px-snd-ice', 3]] },
+  { name: 'plinkfx-new', steps: [['plinkfx', 0], ['px-signals', 1], ['px-beeps', 2], ['px-snd-beep', 3]] },
   { name: 'zzfxm', steps: [['zzfxm', 0], ['zz-pads', 1], ['zz-ice-sheet', 2]] },
+  { name: 'zzfxm-new', steps: [['zzfxm', 0], ['zz-bells', 1], ['zz-ion-snow', 2]] },
   { name: 'tone-icy-pad', steps: [['tone', 0], ['tn-pads', 1], ['tn-icy-pad', 2]] },
-  { name: 'tone-glass-room', steps: [['tone', 0], ['tn-pads', 1], ['tn-glass-room', 2]] },
-  { name: 'tone-slow-arp', steps: [['tone', 0], ['tn-pulses', 1], ['tn-slow-arp', 2]] },
+  { name: 'tone-night-bells', steps: [['tone', 0], ['tn-bells', 1], ['tn-night-bells', 2]] },
   { name: 'tone-crt-hum', steps: [['tone', 0], ['tn-pulses', 1], ['tn-crt-hum', 2]] },
 ]
 

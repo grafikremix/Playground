@@ -51,7 +51,6 @@ function soundSwitchMarkup() {
 function ideaChrome(spec) {
   const id = `prompt-window-${spec.slug}`
   const edit = spec.edit && spec.edit.text
-  const author = spec.author || 'Radley'
   return `
     <nav class="chrome">
       <a class="back" href="${withBase('')}">← Back</a>
@@ -67,20 +66,12 @@ function ideaChrome(spec) {
       <div class="prompt-scroll">
         <h2 class="prompt-title" id="${id}-title">${escapeHtml(spec.title)}</h2>
         <p class="prompt-blurb">${escapeHtml(spec.blurb)}</p>
+        <hr class="prompt-rule" />
+        ${edit ? `<div class="prompt-toggles">${playSwitchMarkup('prompt-switch')}</div>` : ''}
         <pre class="prompt-text" data-prompt></pre>
-        <div class="prompt-meta">
-          <p>Idea ${escapeHtml(spec.idea)}</p>
-          <p>Author ${escapeHtml(author)}</p>
-          <p>Date <time datetime="${escapeHtml(spec.date)}">${escapeHtml(spec.date)}</time></p>
-          ${
-            edit
-              ? `<p>Edited <time datetime="${escapeHtml(spec.edit.date)}">${escapeHtml(spec.edit.date)}</time> by ${escapeHtml(spec.edit.author || 'Radley')}</p>`
-              : ''
-          }
-        </div>
+        <div class="prompt-meta" data-prompt-meta></div>
       </div>
       <footer class="prompt-footer">
-        ${edit ? playSwitchMarkup('prompt-switch') : ''}
         ${soundSwitchMarkup()}
       </footer>
     </div>
@@ -211,6 +202,21 @@ export function boot(slug, mounts) {
     pre.textContent = useEdit ? spec.edit.text : (spec.prompt ?? '')
   }
 
+  const paintMeta = (root) => {
+    const meta = root.querySelector('[data-prompt-meta]')
+    if (!meta) return
+    const useEdit = version === 'edit' && spec.edit?.text
+    if (useEdit) {
+      meta.innerHTML = `<p>Idea ${escapeHtml(spec.idea)}</p>
+          <p>Edited by ${escapeHtml(spec.edit.author || 'Radley')}</p>
+          <p>Edited on <time datetime="${escapeHtml(spec.edit.date)}">${escapeHtml(spec.edit.date)}</time></p>`
+    } else {
+      meta.innerHTML = `<p>Idea ${escapeHtml(spec.idea)}</p>
+          <p>Author ${escapeHtml(spec.author || 'Radley')}</p>
+          <p>Date <time datetime="${escapeHtml(spec.date)}">${escapeHtml(spec.date)}</time></p>`
+    }
+  }
+
   const paintSwitches = (root) => {
     const editOn = version === 'edit'
     root.querySelectorAll('[data-play-switch]').forEach((sw) => {
@@ -236,6 +242,7 @@ export function boot(slug, mounts) {
     if (!peek && !still) setVersionInUrl(version)
     paintSwitches(root)
     paintPrompt(root)
+    paintMeta(root)
     if (!changed) return
     if (!silent) sfxSwitch()
     if (stop) {
@@ -287,6 +294,7 @@ export function boot(slug, mounts) {
   if (!still) bindStart(app)
   paintSwitches(app)
   paintPrompt(app)
+  paintMeta(app)
   paintSound(app)
   if (!still) typeHudTitle(app.querySelector('.idea-hud'), spec.title)
 

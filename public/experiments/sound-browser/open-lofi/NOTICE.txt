@@ -1,7 +1,7 @@
 Open Lo-Fi (CC0 1.0) by btahir
 https://github.com/btahir/open-lofi
 
-This folder is a small curated subset of the v1.0.0 release, grouped
+This folder is a curated subset of the v1.0.0 release, grouped
 by the project's own category slugs. Tracks were trimmed to 16 seconds
 and encoded as 64 kbps mono MP3 so the playground stays light.
 

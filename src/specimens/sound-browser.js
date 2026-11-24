@@ -13,6 +13,8 @@ const ICE = 'rgba(183,236,255,0.92)'
 
 const FOLDER_ICON = `<svg class="sb-ico" viewBox="0 0 18 18" aria-hidden="true"><path d="M2.5 5.5h4l1.2 1.5H15.5v7H2.5z" fill="none" stroke="currentColor" stroke-width="1"/><path d="M2.5 7h13" fill="none" stroke="currentColor" stroke-width="1"/></svg>`
 const FILE_ICON = `<svg class="sb-ico" viewBox="0 0 18 18" aria-hidden="true"><path d="M5 2.5h5.5L15 7v8.5H5z" fill="none" stroke="currentColor" stroke-width="1"/><path d="M10.5 2.5V7H15" fill="none" stroke="currentColor" stroke-width="1"/><path d="M7 11.5h6M7 13.5h4" fill="none" stroke="currentColor" stroke-width="1"/></svg>`
+const PLAY_ICON = `<svg class="sb-cta-ico" viewBox="0 0 18 18" aria-hidden="true"><path d="M6.5 4.5v9l8-4.5z" fill="none" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/></svg>`
+const PAUSE_ICON = `<svg class="sb-cta-ico" viewBox="0 0 18 18" aria-hidden="true"><path d="M6 4.5h1.6v9H6zM10.4 4.5H12v9h-1.6z" fill="none" stroke="currentColor" stroke-width="1"/></svg>`
 
 function clamp(n, a, b) {
   return Math.max(a, Math.min(b, n))
@@ -29,7 +31,7 @@ export function mount(stage, { still, peek } = {}) {
   const dock = document.createElement('footer')
   dock.className = 'sb-dock'
   dock.innerHTML = `
-    <button class="sb-toggle" type="button" aria-label="Play">Play</button>
+    <button class="sb-toggle" type="button" aria-label="Play">${PLAY_ICON}<span data-cta-label>Play</span></button>
     <div class="sb-now">
       <p class="sb-track">Select a loop</p>
       <p class="sb-credit"><a class="sb-link" href="https://github.com/btahir/open-lofi" target="_blank" rel="noopener">GitHub</a></p>
@@ -49,7 +51,7 @@ export function mount(stage, { still, peek } = {}) {
     : peek
       ? { x: 28, y: 72, s: 0.5, vx: 0, vy: 0 }
       : { x: 18, y: 18, s: 1, vx: 0, vy: 0 }
-  let stack = preview ? ['open-lofi', 'ambient-lofi'] : []
+  let stack = preview ? ['open-lofi', 'ol-drift', 'ambient-lofi'] : []
   let playing = preview ? findNode('ol-deep-space-loop') : null
   let paused = false
   let source = null
@@ -76,6 +78,26 @@ export function mount(stage, { still, peek } = {}) {
 
   function live() {
     return isLive()
+  }
+
+  function leafCount(node) {
+    if (!node) return 0
+    if (node.kind === 'audio') return 1
+    return (node.children || []).reduce((n, c) => n + leafCount(c), 0)
+  }
+
+  function rowSub(node) {
+    if (node.kind === 'folder') {
+      const n = leafCount(node)
+      return `${n} ${n === 1 ? 'loop' : 'loops'}`
+    }
+    return node.credit || ''
+  }
+
+  function setToggle(isPaused, hasTrack) {
+    const playingNow = hasTrack && !isPaused
+    toggle.innerHTML = `${playingNow ? PAUSE_ICON : PLAY_ICON}<span data-cta-label>${playingNow ? 'Pause' : 'Play'}</span>`
+    toggle.setAttribute('aria-label', playingNow ? 'Pause' : 'Play')
   }
 
   function columns() {
@@ -114,7 +136,7 @@ export function mount(stage, { still, peek } = {}) {
         row.className = `sb-row${node.kind === 'audio' ? ' is-audio' : ' is-folder'}${selected === node.id ? ' is-on' : ''}${playing?.id === node.id ? ' is-playing' : ''}`
         row.dataset.id = node.id
         row.dataset.depth = String(depth)
-        row.innerHTML = `${node.kind === 'audio' ? FILE_ICON : FOLDER_ICON}<span class="sb-row-text"><span class="sb-row-title">${node.title}</span><span class="sb-row-sub">${node.credit || ''}</span></span>${playing?.id === node.id ? '<canvas class="sb-row-wave" width="72" height="22"></canvas>' : ''}`
+        row.innerHTML = `${node.kind === 'audio' ? FILE_ICON : FOLDER_ICON}<span class="sb-row-text"><span class="sb-row-title">${node.title}</span><span class="sb-row-sub">${rowSub(node)}</span></span>${playing?.id === node.id ? '<canvas class="sb-row-wave" width="72" height="22"></canvas>' : ''}`
         col.appendChild(row)
       }
       world.appendChild(col)
@@ -135,12 +157,24 @@ export function mount(stage, { still, peek } = {}) {
     const cr = last.getBoundingClientRect()
     const pad = 18
     const dockH = preview ? 12 : 78
+    const maxRight = wr.right - pad
+    const minLeft = wr.left + pad
+    const maxBottom = wr.bottom - dockH
+    const minTop = wr.top + pad
+    const availW = maxRight - minLeft
+    const availH = maxBottom - minTop
     let dx = 0
     let dy = 0
-    if (cr.right > wr.right - pad) dx = wr.right - pad - cr.right
-    if (cr.left < wr.left + pad) dx = wr.left + pad - cr.left
-    if (cr.bottom > wr.bottom - dockH) dy = wr.bottom - dockH - cr.bottom
-    if (cr.top < wr.top + pad) dy = wr.top + pad - cr.top
+    if (cr.width > availW) dx = maxRight - cr.right
+    else {
+      if (cr.right > maxRight) dx = maxRight - cr.right
+      if (cr.left < minLeft) dx = minLeft - cr.left
+    }
+    if (cr.height > availH) dy = minTop - cr.top
+    else {
+      if (cr.bottom > maxBottom) dy = maxBottom - cr.bottom
+      if (cr.top < minTop) dy = minTop - cr.top
+    }
     if (!dx && !dy) return
     stopPanAnim()
     const x0 = cam.x
@@ -208,8 +242,7 @@ export function mount(stage, { still, peek } = {}) {
     paused = !!isPaused
     trackEl.textContent = node ? node.title : 'Select a loop'
     creditEl.innerHTML = creditHtml(node)
-    toggle.textContent = !node ? 'Play' : paused ? 'Play' : 'Pause'
-    toggle.setAttribute('aria-label', toggle.textContent)
+    setToggle(paused, !!node)
     paint()
   }
 
@@ -332,7 +365,8 @@ export function mount(stage, { still, peek } = {}) {
     } catch {
       /* first run has nothing to stop */
     }
-    const g = new Tone.Gain(node.patch === 'crt-hum' ? 0.7 : 0.22)
+    const loud = node.patch === 'crt-hum' || node.patch === 'tape-hiss' || node.patch === 'snow-static' || node.patch === 'phosphor-tick'
+    const g = new Tone.Gain(loud ? 0.62 : 0.22)
     g.connect(busNode)
     const parts = [g]
     const stop = () => {
@@ -350,7 +384,13 @@ export function mount(stage, { still, peek } = {}) {
         }
       }
     }
-    if (node.patch === 'icy-pad') {
+    const patch = node.patch
+    const addLoop = (interval, fn) => {
+      const loop = new Tone.Loop(fn, interval)
+      loop.start(0)
+      parts.push(loop)
+    }
+    if (patch === 'icy-pad') {
       const a = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.12, decay: 0.2, sustain: 0.7, release: 1.4 } })
       const b = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.16, decay: 0.2, sustain: 0.7, release: 1.6 } })
       const f = new Tone.Filter(720, 'lowpass')
@@ -360,25 +400,40 @@ export function mount(stage, { still, peek } = {}) {
       const lfo = new Tone.LFO(0.08, 420, 980).connect(f.frequency)
       lfo.start()
       parts.push(a, b, f, lfo)
-      const loop = new Tone.Loop((time) => {
+      addLoop('1m', (time) => {
         a.triggerAttackRelease('C3', '2n', time, 0.35)
         b.triggerAttackRelease('G3', '2n', time, 0.22)
-      }, '1m')
-      loop.start(0)
-      parts.push(loop)
-    } else if (node.patch === 'glass-room') {
+      })
+    } else if (patch === 'glass-room') {
       const s = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.08, decay: 0.3, sustain: 0.2, release: 1.2 } })
       s.connect(g)
       parts.push(s)
       const notes = ['E4', 'B4', 'G4', 'D5']
       let i = 0
-      const loop = new Tone.Loop((time) => {
+      addLoop('2n', (time) => {
         s.triggerAttackRelease(notes[i % notes.length], '4n', time, 0.28)
         i += 1
-      }, '2n')
-      loop.start(0)
-      parts.push(loop)
-    } else if (node.patch === 'slow-arp') {
+      })
+    } else if (patch === 'frost-choir') {
+      const a = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.5, decay: 0.3, sustain: 0.6, release: 1.8 } })
+      const b = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.6, decay: 0.2, sustain: 0.5, release: 2 } })
+      a.connect(g)
+      b.connect(g)
+      parts.push(a, b)
+      addLoop('1m', (time) => {
+        a.triggerAttackRelease('E3', '1n', time, 0.28)
+        b.triggerAttackRelease('B3', '1n', time, 0.16)
+      })
+    } else if (patch === 'halo-drone') {
+      const s = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.8, decay: 0.1, sustain: 0.85, release: 2.2 } })
+      const f = new Tone.Filter(480, 'lowpass')
+      s.connect(f)
+      f.connect(g)
+      const lfo = new Tone.LFO(0.05, 280, 640).connect(f.frequency)
+      lfo.start()
+      parts.push(s, f, lfo)
+      addLoop('2m', (time) => s.triggerAttackRelease('G2', '1m', time, 0.4))
+    } else if (patch === 'slow-arp') {
       const s = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.12, sustain: 0.05, release: 0.3 } })
       const f = new Tone.Filter(1800, 'lowpass')
       s.connect(f)
@@ -386,12 +441,65 @@ export function mount(stage, { still, peek } = {}) {
       parts.push(s, f)
       const notes = ['C3', 'G3', 'C4', 'D4', 'G3']
       let i = 0
-      const loop = new Tone.Loop((time) => {
+      addLoop('4n', (time) => {
         s.triggerAttackRelease(notes[i % notes.length], '8n', time, 0.22)
         i += 1
-      }, '4n')
-      loop.start(0)
-      parts.push(loop)
+      })
+    } else if (patch === 'phosphor-tick') {
+      const s = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.001, decay: 0.05, sustain: 0.01, release: 0.08 } })
+      s.connect(g)
+      parts.push(s)
+      addLoop('8n', (time) => s.triggerAttackRelease('E5', '32n', time, 0.18))
+    } else if (patch === 'vector-bass') {
+      const s = new Tone.Synth({ oscillator: { type: 'sawtooth' }, envelope: { attack: 0.01, decay: 0.18, sustain: 0.2, release: 0.25 } })
+      const f = new Tone.Filter(320, 'lowpass')
+      s.connect(f)
+      f.connect(g)
+      parts.push(s, f)
+      const notes = ['C2', 'C2', 'G1', 'C2']
+      let i = 0
+      addLoop('2n', (time) => {
+        s.triggerAttackRelease(notes[i % notes.length], '4n', time, 0.4)
+        i += 1
+      })
+    } else if (patch === 'night-bells') {
+      const s = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.002, decay: 0.9, sustain: 0.05, release: 1.4 } })
+      s.connect(g)
+      parts.push(s)
+      const notes = ['B5', 'E5', 'G5', 'D6']
+      let i = 0
+      addLoop('2n', (time) => {
+        s.triggerAttackRelease(notes[i % notes.length], '2n', time, 0.32)
+        i += 1
+      })
+    } else if (patch === 'ice-pluck') {
+      const s = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.001, decay: 0.22, sustain: 0.02, release: 0.35 } })
+      const f = new Tone.Filter(2400, 'lowpass')
+      s.connect(f)
+      f.connect(g)
+      parts.push(s, f)
+      const notes = ['E4', 'B3', 'G4', 'D4']
+      let i = 0
+      addLoop('4n', (time) => {
+        s.triggerAttackRelease(notes[i % notes.length], '8n', time, 0.3)
+        i += 1
+      })
+    } else if (patch === 'tape-hiss') {
+      const n = new Tone.NoiseSynth({ noise: { type: 'pink' }, envelope: { attack: 0.4, decay: 0.1, sustain: 0.7, release: 0.6 } })
+      const f = new Tone.Filter({ frequency: 1800, type: 'highpass', Q: 0.4 })
+      n.connect(f)
+      f.connect(g)
+      parts.push(n, f)
+      addLoop('1n', (time) => n.triggerAttackRelease('2n', time, 0.35))
+    } else if (patch === 'snow-static') {
+      const n = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.2, decay: 0.2, sustain: 0.35, release: 0.5 } })
+      const f = new Tone.Filter({ frequency: 2600, type: 'bandpass', Q: 1.2 })
+      n.connect(f)
+      f.connect(g)
+      const lfo = new Tone.LFO(0.2, 1400, 3200).connect(f.frequency)
+      lfo.start()
+      parts.push(n, f, lfo)
+      addLoop('2n', (time) => n.triggerAttackRelease('4n', time, 0.28))
     } else {
       const n = new Tone.NoiseSynth({ noise: { type: 'brown' }, envelope: { attack: 0.04, decay: 0.05, sustain: 0.7, release: 0.3 } })
       const f = new Tone.Filter({ frequency: 420, type: 'bandpass', Q: 0.8 })
@@ -400,11 +508,7 @@ export function mount(stage, { still, peek } = {}) {
       const lfo = new Tone.LFO(1.4, 220, 620).connect(f.frequency)
       lfo.start()
       parts.push(n, f, lfo)
-      const loop = new Tone.Loop((time) => {
-        n.triggerAttackRelease('2n', time, 0.85)
-      }, '2n')
-      loop.start(0)
-      parts.push(loop)
+      addLoop('2n', (time) => n.triggerAttackRelease('2n', time, 0.85))
     }
     transport.bpm.value = 72
     transport.start()
@@ -454,7 +558,7 @@ export function mount(stage, { still, peek } = {}) {
     }
     stopSrc()
     paused = true
-    toggle.textContent = 'Play'
+    setToggle(true, true)
     paint()
   }
 

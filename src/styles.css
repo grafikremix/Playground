@@ -572,8 +572,8 @@ html.is-js:not(.is-intro-done) .tile:not(.is-in) {
 
 .prompt-meta {
   margin: 16px 0 0;
-  padding: 12px 0 0;
-  border-top: var(--border-hairline);
+  padding: 0;
+  border: 0;
   font-size: 11px;
   letter-spacing: 0;
   text-transform: none;
@@ -914,7 +914,7 @@ html.is-js:not(.is-intro-done) .tile:not(.is-in) {
 }
 
 .prompt-blurb {
-  margin: 0 0 12px;
+  margin: 0 0 10px;
   font-size: 0.75rem;
   color: var(--p-soft);
   max-width: none;
@@ -923,6 +923,13 @@ html.is-js:not(.is-intro-done) .tile:not(.is-in) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.prompt-rule {
+  border: 0;
+  border-top: var(--border-hairline);
+  margin: 0 0 12px;
+  height: 0;
 }
 
 .prompt-toggles {
@@ -1291,8 +1298,8 @@ body.is-peek .sb-wrap {
   align-items: center;
   padding: 0 4px;
   font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-transform: none;
   color: var(--hud-ink);
 }
 
@@ -1324,8 +1331,11 @@ body.is-peek .sb-wrap {
 
 .sb-row.is-on,
 .sb-row.is-playing {
-  border-color: color-mix(in srgb, var(--p) 48%, transparent);
-  box-shadow: 0 0 12px rgba(183, 236, 255, 0.12);
+  background: rgba(183, 236, 255, 0.08);
+  border-color: var(--border-hairline-color);
+  box-shadow: inset 0 0 18px rgba(183, 236, 255, 0.07);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .sb-ico {
@@ -1354,8 +1364,8 @@ body.is-peek .sb-wrap {
 
 .sb-row-sub {
   font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  text-transform: none;
   color: var(--hud-ink);
 }
 
@@ -1384,18 +1394,29 @@ body.is-peek .sb-wrap {
 
 .sb-toggle {
   appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   min-height: 44px;
-  min-width: 72px;
-  padding: 0 14px;
+  min-width: 44px;
+  padding: 0 12px;
   margin: 0;
   border: var(--border-hairline);
   background: var(--hud-fill);
   color: var(--p-hi);
   font: inherit;
   font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-transform: none;
   cursor: pointer;
+}
+
+.sb-cta-ico {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  display: block;
 }
 
 .sb-now {
@@ -1415,8 +1436,8 @@ body.is-peek .sb-wrap {
 .sb-credit {
   margin: 2px 0 0;
   font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  text-transform: none;
   color: var(--hud-ink);
 }
 
