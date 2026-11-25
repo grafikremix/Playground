@@ -990,7 +990,6 @@ body.is-full .prompt-footer,
 body.is-full .prompt-scroll,
 body.is-full .sb-wrap,
 body.is-full .sb-dock,
-body.is-full .wf-hud,
 body.is-full .wf-hud button {
   pointer-events: auto;
 }
@@ -1488,13 +1487,22 @@ body.is-peek .sb-wrap {
   bottom: 0;
   z-index: 20;
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 10px 12px;
-  padding: 8px 12px max(10px, env(safe-area-inset-bottom));
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 8px max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
   pointer-events: none;
   background: linear-gradient(to top, rgba(2, 5, 12, 0.72), rgba(2, 5, 12, 0));
+}
+
+.wf-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 10px;
+  pointer-events: none;
 }
 
 .wf-gauge,
@@ -1506,11 +1514,16 @@ body.is-peek .sb-wrap {
 }
 
 .wf-gauge-k {
-  font-size: 10px;
+  display: block;
+  width: auto;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  font-size: 11px;
   letter-spacing: 0.04em;
   text-transform: none;
   color: var(--hud-ink);
-  margin-right: 4px;
+  white-space: nowrap;
 }
 
 .wf-hud button {

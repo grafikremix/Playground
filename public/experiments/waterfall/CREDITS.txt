@@ -5,4 +5,11 @@ waterfall — sources and licenses (verified 2026-11-24)
    Sounds: CC0 1.0 (licenses/plinkfx-LICENSE-SOUNDS)
    Author: Maximilian Feix
    Used as generated code via the npm package, not audio files.
-   Water, splash, drip and rain-loop sounds play at runtime.
+   Soft water-flow bed, occasional splash/drip, and pool lapping play at runtime.
+
+2. SPHjs — https://github.com/asadm/SPHjs
+   License: MIT, as stated in the upstream README (no separate LICENSE file).
+   See licenses/SPHjs-LICENSE.txt.
+   Author: asadm
+   Vendored under src/specimens/waterfall/js/ (SPH.js, WebGPUFluid.js, Renderer.js).
+   Used as the water engine (CPU SPH + WebGL2, or WebGPU on HTTPS when available).

@@ -85,6 +85,15 @@ function fakeAudio() {
     createAnalyser() {
       return new FakeNode()
     }
+    createDynamicsCompressor() {
+      const n = new FakeNode()
+      n.threshold = new FakeParam(-24)
+      n.knee = new FakeParam(10)
+      n.ratio = new FakeParam(12)
+      n.attack = new FakeParam(0.003)
+      n.release = new FakeParam(0.25)
+      return n
+    }
     createBufferSource() {
       return new FakeNode()
     }
@@ -97,6 +106,12 @@ function fakeAudio() {
   }
   window.AudioContext = FakeAC
   window.webkitAudioContext = FakeAC
+  const silentPlay = () => Promise.resolve()
+  try {
+    HTMLMediaElement.prototype.play = silentPlay
+  } catch {
+    /* */
+  }
 }
 
 function hair(c) {
@@ -158,11 +173,14 @@ report.hud = await page.evaluate(() => ({
   },
 }))
 await page.click('.start')
-await page.waitForFunction(() => document.body.classList.contains('is-live') && window.__waterfall)
+await page.waitForFunction(() => document.body.classList.contains('is-live') && window.__waterfall, null, { timeout: 30000 })
 await page.waitForTimeout(400)
 
 report.afterStart = await page.evaluate(() => {
   const hud = document.querySelector('.wf-hud')
+  const label = document.querySelector('.wf-gauge-k')
+  const lr = label.getBoundingClientRect()
+  const hr = hud.getBoundingClientRect()
   const gauge = [...document.querySelectorAll('[data-rate]')].map((b) => b.textContent.trim())
   const reset = document.querySelector('.wf-reset')
   return {
@@ -170,11 +188,13 @@ report.afterStart = await page.evaluate(() => {
     reset: reset?.textContent.trim(),
     resetBorder: getComputedStyle(reset).borderTopColor,
     gaugeBorder: getComputedStyle(document.querySelector('[data-rate]')).borderTopColor,
+    pressureLabel: label?.textContent.trim(),
+    hudBox: { l: lr.left, r: lr.right, t: lr.top, b: lr.bottom, vw: innerWidth, vh: innerHeight, hudL: hr.left, hudR: hr.right },
     stats: window.__waterfall.stats(),
   }
 })
 
-const box = await page.locator('canvas').evaluate((el) => {
+const box = await page.locator('.wf-wrap').evaluate((el) => {
   const r = el.getBoundingClientRect()
   return { l: r.left, t: r.top, w: r.width, h: r.height }
 })
@@ -198,7 +218,7 @@ await page.evaluate(() => {
     { x: cx + 120, y: 170 },
   ])
 })
-await page.waitForTimeout(1800)
+await page.waitForTimeout(2400)
 report.split = await page.evaluate(() => window.__waterfall.stats())
 
 await page.evaluate(() => {
@@ -213,7 +233,7 @@ await page.evaluate(() => {
     { x: cx + 80, y: 250 },
   ])
 })
-await page.waitForTimeout(1600)
+await page.waitForTimeout(2800)
 report.bowlFill = await page.evaluate(() => window.__waterfall.stats())
 await page.waitForTimeout(2200)
 report.bowlOver = await page.evaluate(() => window.__waterfall.stats())
@@ -295,6 +315,69 @@ report.reset = await page.evaluate((before) => {
 await page.waitForTimeout(500)
 report.resetFlow = await page.evaluate(() => window.__waterfall.stats().particles)
 
+await page.evaluate(() => {
+  window.__waterfall.reset()
+  const s = window.__waterfall.stats()
+  const cx = s.viewW / 2
+  window.__waterfall.drawPolyline([
+    { x: cx - 130, y: 180 },
+    { x: cx + 130, y: 180 },
+  ])
+})
+await page.waitForTimeout(3500)
+report.crossings = await page.evaluate(() => window.__waterfall.stats())
+
+report.rates = await page.evaluate(() => {
+  const out = {}
+  for (const p of ['slow', 'medium', 'fast']) {
+    window.__waterfall.setPressure(p)
+    const s = window.__waterfall.stats()
+    out[p] = { emitRate: s.emitRate, prev: s.prevEmitRate }
+  }
+  window.__waterfall.setPressure('medium')
+  return out
+})
+
+report.cycles = await page.evaluate(async () => {
+  const wrap = document.querySelector('.wf-wrap')
+  const r = wrap.getBoundingClientRect()
+  const fire = (type, id, x, y) => {
+    wrap.dispatchEvent(
+      new PointerEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        pointerId: id,
+        pointerType: 'touch',
+        clientX: x,
+        clientY: y,
+        buttons: type === 'pointerup' ? 0 : 1,
+      }),
+    )
+  }
+  let draws = 0
+  let scrolls = 0
+  window.__waterfall.reset()
+  for (let n = 0; n < 32; n++) {
+    const y = r.top + 120 + (n % 5) * 18
+    fire('pointerdown', 1, r.left + 40, y)
+    fire('pointermove', 1, r.left + 200, y + 8)
+    fire('pointerup', 1, r.left + 200, y + 8)
+    const afterDraw = window.__waterfall.stats()
+    if (afterDraw.strokes > draws) draws = afterDraw.strokes
+    const before = window.__waterfall.stats().camY
+    fire('pointerdown', 2, r.left + 80, r.top + 300)
+    fire('pointerdown', 3, r.left + 160, r.top + 300)
+    fire('pointermove', 2, r.left + 80, r.top + 360)
+    fire('pointermove', 3, r.left + 160, r.top + 360)
+    fire('pointerup', 2, r.left + 80, r.top + 360)
+    fire('pointerup', 3, r.left + 160, r.top + 360)
+    const after = window.__waterfall.stats().camY
+    if (after > before + 8) scrolls += 1
+    window.__waterfall.scrollTo(0)
+  }
+  return { draws, scrolls }
+})
+
 await page.click('.prompt-open')
 await page.waitForSelector('.prompt-window:not([hidden])')
 report.prompt = await page.evaluate(() => {
@@ -316,6 +399,7 @@ report.prompt = await page.evaluate(() => {
     hasToggle: !!document.querySelector('[data-play-switch]'),
     credit: document.querySelector('[data-prompt-credit]')?.textContent.trim() || '',
     href: document.querySelector('.prompt-credit-link')?.getAttribute('href') || '',
+    hrefs: [...document.querySelectorAll('.prompt-credit-link')].map((a) => a.getAttribute('href') || ''),
     meta: [...document.querySelectorAll('.prompt-meta p')].map((p) => p.textContent.trim()),
     prompt: document.querySelector('[data-prompt]')?.textContent || '',
   }
@@ -344,7 +428,8 @@ await page.__browser.close()
   const still = await launchPage()
   await still.goto(`${BASE}/specimens/waterfall.html?still=1`, { waitUntil: 'domcontentloaded', timeout: 120000 })
   await still.waitForSelector('canvas')
-  await still.waitForTimeout(500)
+  await still.waitForFunction(() => window.__waterfall, null, { timeout: 20000 })
+  await still.waitForTimeout(400)
   report.still = await still.evaluate(() => ({
     hud: !!document.querySelector('.wf-hud'),
     score: /(?:^|\s)(score|hits|best)\b/i.test(document.body.innerText),
@@ -387,10 +472,18 @@ check(report.prompt.scroll.join() === 'title,subtitle,divider,prompt,meta,credit
 check(!report.prompt.hasToggle, 'no edit toggle', report.prompt)
 check(report.prompt.footer.join() === 'Sound', 'footer only sound', report.prompt.footer)
 check(report.prompt.credit.includes('plinkfx') && report.prompt.href.includes('maximilianfeix/plinkfx'), 'plinkfx credit', report.prompt)
+check(report.prompt.credit.includes('SPHjs') && report.prompt.hrefs.some((h) => h.includes('asadm/SPHjs')), 'sphjs credit', report.prompt)
 check(report.prompt.prompt.includes('water flowing vertically') && report.prompt.prompt.includes('plinkfx'), 'verbatim prompt')
+check(report.crossings.crossings === 0, 'zero tunnelling', { crossings: report.crossings.crossings, n: report.crossings.particles, solver: report.crossings.solver })
+check(report.rates.slow.emitRate === 35 && report.rates.medium.emitRate === 75 && report.rates.fast.emitRate === 120, 'halved flow', report.rates)
+check(report.rates.slow.prev === 70 && report.rates.medium.prev === 150 && report.rates.fast.prev === 240, 'old rates recorded', report.rates)
+check(report.cycles.draws >= 30 && report.cycles.scrolls >= 30, '30 draw/scroll cycles', report.cycles)
+check(report.afterStart.hudBox.l >= 8 && report.afterStart.hudBox.r <= report.afterStart.hudBox.vw - 4, 'pressure unclipped', report.afterStart.hudBox)
+check(report.split.trigPerSec <= 4, 'trig/s', report.split.trigPerSec)
+check(!!report.split.solver, 'solver path', report.split.solver)
 check(report.prompt.meta[0] === 'Idea 11' && report.prompt.meta.some((m) => m.startsWith('Author')), 'meta', report.prompt.meta)
 check(!report.still.hud && !report.still.score && report.still.strokes >= 1, 'still pose', report.still)
 check(report.split.fps >= 20, 'fps', report.split.fps)
 
-console.log(JSON.stringify({ ok: fails.length === 0, fails, report: { home: report.home, afterStart: { gauge: report.afterStart.gauge, reset: report.afterStart.reset, particles: report.afterStart.stats.particles }, drawn: { strokes: report.drawn.strokes }, split: { l: report.split.splitLeft, r: report.split.splitRight, n: report.split.particles, fps: report.split.fps }, bowlFill: report.bowlFill.bowl, bowlOver: { n: report.bowlOver.particles, bowl: report.bowlOver.bowl }, slope: report.slope, pinchScroll: report.pinchScroll.camY, arrow: report.arrow, slow: report.slow, fast: report.fast, boats: report.boats, reset: report.reset, resetFlow: report.resetFlow, prompt: { scroll: report.prompt.scroll, footer: report.prompt.footer, credit: report.prompt.credit, href: report.prompt.href, meta: report.prompt.meta }, still: report.still, errors } }, null, 2))
+console.log(JSON.stringify({ ok: fails.length === 0, fails, report: { home: report.home, afterStart: { gauge: report.afterStart.gauge, reset: report.afterStart.reset, particles: report.afterStart.stats.particles, solver: report.afterStart.stats.solver }, drawn: { strokes: report.drawn.strokes }, split: { l: report.split.splitLeft, r: report.split.splitRight, n: report.split.particles, fps: report.split.fps, crossings: report.split.crossings, trigPerSec: report.split.trigPerSec, solver: report.split.solver }, bowlFill: report.bowlFill.bowl, bowlOver: { n: report.bowlOver.particles, bowl: report.bowlOver.bowl }, slope: report.slope, pinchScroll: report.pinchScroll.camY, arrow: report.arrow, slow: report.slow, fast: report.fast, boats: report.boats, reset: report.reset, resetFlow: report.resetFlow, crossings: report.crossings?.crossings, rates: report.rates, cycles: report.cycles, prompt: { scroll: report.prompt.scroll, footer: report.prompt.footer, credit: report.prompt.credit, href: report.prompt.href, hrefs: report.prompt.hrefs, meta: report.prompt.meta }, still: report.still, errors } }, null, 2))
 if (fails.length) process.exit(1)

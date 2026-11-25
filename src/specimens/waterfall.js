@@ -1,39 +1,54 @@
 import { unlock, getContext, getMaster, silent, soundOn, canPlay } from '../lib/audio.js'
 import { isLive } from '../lib/play.js'
-import { fitCanvas, clearBacking, watchFrame } from '../lib/canvas.js'
+import { viewSize, watchFrame } from '../lib/canvas.js'
 import { render } from 'plinkfx/core'
-import { splash, waterDrop, rainDrop, rainLoop, bubble, diveSplash, oceanWave } from 'plinkfx/sounds'
+import { splash, waterDrop, oceanWave } from 'plinkfx/sounds'
+import SPH from './waterfall/js/SPH.js'
+import { createRenderer } from './waterfall/js/Renderer.js'
+import { createWebGPUFluid } from './waterfall/js/WebGPUFluid.js'
+
+const FLOW_PATCH = {
+  loop: true,
+  layers: [
+    { wave: 'pink', lp: 620, a: 0.4, h: 1.6, d: 0, gain: 0.55 },
+    { wave: 'brown', lp: 260, a: 0.5, h: 1.6, d: 0, gain: 0.8 },
+    { wave: 'noise', lp: 480, a: 0.35, h: 1.6, d: 0, gain: 0.2 },
+  ],
+  gain: 0.4,
+}
 
 const ICE = '#b7ecff'
-const ICE_SOFT = 'rgba(183,236,255,0.88)'
+const ICE_SOFT = 'rgba(183,236,255,0.9)'
 const BG = '#02050c'
-const TAU = Math.PI * 2
 const SCREENS = 4.2
 const DT = 1 / 60
-const SUBS = 1
-const R = 4.6
-const CELL = 10
-const STROKE_R = 7
-const POOL = 78
-const SPRINGS = 40
-const G = 1680
-const STIFF = 0.52
-const VISC = 0.14
-const REST = 0.22
+const POOL_MIN = 56
+const SPRINGS = 48
+const STROKE_R = 14
+const PREV_PRESS = { slow: 70, medium: 150, fast: 240 }
 const PRESS = {
-  slow: { rate: 70, speed: 90, spread: 8, ambient: 0.045 },
-  medium: { rate: 150, speed: 150, spread: 12, ambient: 0.08 },
-  fast: { rate: 240, speed: 230, spread: 18, ambient: 0.13 },
+  slow: { rate: 35, speed: 70, spread: 7, ambient: 0.09 },
+  medium: { rate: 75, speed: 110, spread: 10, ambient: 0.12 },
+  fast: { rate: 120, speed: 155, spread: 14, ambient: 0.16 },
 }
+const TRIG_MAX = 4
 
 function clamp(n, a, b) {
   return Math.max(a, Math.min(b, n))
 }
 
-function mobileMax() {
+function particleCap() {
   const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
-  const narrow = typeof window !== 'undefined' && window.innerWidth < 430
-  return coarse || narrow ? 420 : 700
+  const memory = Number(navigator.deviceMemory) || 8
+  const cores = Number(navigator.hardwareConcurrency) || 4
+  if (memory <= 3 || cores <= 4 || coarse) return coarse ? 1800 : 2400
+  return 3600
+}
+
+function preferredDiameter(width, height) {
+  const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
+  if (!coarse) return 36
+  return Math.round(Math.max(28, Math.min(34, Math.min(width, height) * 0.076)))
 }
 
 function distSeg(px, py, ax, ay, bx, by) {
@@ -44,10 +59,7 @@ function distSeg(px, py, ax, ay, bx, by) {
   t = clamp(t, 0, 1)
   const x = ax + dx * t
   const y = ay + dy * t
-  const nx = px - x
-  const ny = py - y
-  const d = Math.hypot(nx, ny)
-  return { t, x, y, nx, ny, d, len: Math.sqrt(l2) }
+  return { t, x, y, d: Math.hypot(px - x, py - y) }
 }
 
 function rdp(pts, eps = 2.6) {
@@ -85,92 +97,207 @@ function chaikin(pts) {
 }
 
 function smoothStroke(raw) {
-  let pts = []
+  const pts = []
   for (const p of raw) {
     const last = pts[pts.length - 1]
     if (!last || Math.hypot(p.x - last.x, p.y - last.y) >= 2.2) pts.push({ x: p.x, y: p.y })
   }
   if (pts.length < 2) return pts
-  pts = chaikin(chaikin(pts))
-  return rdp(pts, 2.4)
+  return rdp(chaikin(chaikin(pts)), 2.4)
 }
 
 export function mount(stage, { still, peek } = {}) {
   const preview = !!(still || peek)
+  let stopped = false
+  let stopInner = () => {}
+
   const wrap = document.createElement('div')
   wrap.className = 'wf-wrap'
-  wrap.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;touch-action:none;overflow:hidden;'
-  const canvas = document.createElement('canvas')
-  const ctx = canvas.getContext('2d', { alpha: false })
-  canvas.style.cssText =
-    'position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:crosshair;-webkit-user-select:none;user-select:none;'
-  const fluid = document.createElement('canvas')
-  const fctx = fluid.getContext('2d', { alpha: true })
+  wrap.style.cssText =
+    'position:absolute;inset:0;width:100%;height:100%;touch-action:none;overflow:hidden;overscroll-behavior:none;-webkit-user-select:none;user-select:none;background:#02050c;'
+
+  const bg = document.createElement('canvas')
+  const overlay = document.createElement('canvas')
+  let fluid = document.createElement('canvas')
+  fluid.className = 'wf-fluid'
+  bg.className = 'wf-bg'
+  overlay.className = 'wf-overlay'
+  const canvasCss =
+    'position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;pointer-events:none;'
+  bg.style.cssText = canvasCss
+  fluid.style.cssText = `${canvasCss}z-index:1;`
+  overlay.style.cssText = `${canvasCss}z-index:2;cursor:crosshair;pointer-events:none;`
+  bg.style.zIndex = '0'
+
   const hud = document.createElement('div')
   hud.className = 'wf-hud'
   hud.innerHTML = `
-    <div class="wf-gauge" role="radiogroup" aria-label="Pressure">
-      <span class="wf-gauge-k">Pressure</span>
-      <button type="button" data-rate="slow" aria-pressed="false">Slow</button>
-      <button type="button" data-rate="medium" aria-pressed="true" class="is-on">Medium</button>
-      <button type="button" data-rate="fast" aria-pressed="false">Fast</button>
-    </div>
-    <div class="wf-actions">
-      <button type="button" class="wf-undo" aria-label="Undo">Undo</button>
-      <button type="button" class="wf-reset" aria-label="Reset">Reset</button>
+    <p class="wf-gauge-k">Pressure</p>
+    <div class="wf-row">
+      <div class="wf-gauge" role="radiogroup" aria-label="Pressure">
+        <button type="button" data-rate="slow" aria-pressed="false">Slow</button>
+        <button type="button" data-rate="medium" aria-pressed="true" class="is-on">Medium</button>
+        <button type="button" data-rate="fast" aria-pressed="false">Fast</button>
+      </div>
+      <div class="wf-actions">
+        <button type="button" class="wf-undo" aria-label="Undo">Undo</button>
+        <button type="button" class="wf-reset" aria-label="Reset">Reset</button>
+      </div>
     </div>`
-  if (preview) wrap.appendChild(canvas)
-  else wrap.append(canvas, hud)
-  stage.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;'
+
+  if (preview) wrap.append(bg, fluid, overlay)
+  else wrap.append(bg, fluid, overlay, hud)
+  stage.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;touch-action:none;'
   stage.replaceChildren(wrap)
 
   const frame = stage.closest('.stage-frame') || stage
-  const MAX = mobileMax()
-  const px = new Float32Array(MAX)
-  const py = new Float32Array(MAX)
-  const ox = new Float32Array(MAX)
-  const oy = new Float32Array(MAX)
-  const vx = new Float32Array(MAX)
-  const vy = new Float32Array(MAX)
-  const next = new Int32Array(MAX)
-  const alive = new Uint8Array(MAX)
-  const liveAt = new Int32Array(MAX)
-  const loc = new Int32Array(MAX)
-  const free = new Int32Array(MAX)
-  let count = 0
-  let freeN = 0
-  for (let i = 0; i < MAX; i++) free[freeN++] = MAX - 1 - i
+  const bctx = bg.getContext('2d', { alpha: false })
+  const octx = overlay.getContext('2d', { alpha: true })
+
+  const boot = async () => {
+    if (stopped) return
+    try {
+    const first = viewSize(frame)
+    const maxParticles = particleCap()
+    const diameter = preferredDiameter(first.w || 390, first.h || 844)
+    const padding = diameter * 0.45
+    let simulation = null
+    let renderer = null
+    let solverPath = 'cpu+webgl2'
+
+    const automated = typeof navigator !== 'undefined' && navigator.webdriver
+    if (!preview && !automated && globalThis.isSecureContext && navigator.gpu) {
+      try {
+        const gpu = await createWebGPUFluid(fluid, {
+          width: first.w || 390,
+          height: (first.h || 844) * SCREENS,
+          maxParticles,
+          boundaryPadding: padding,
+          pointDiameter: diameter,
+          smoothingRadius: 32,
+        })
+        if (gpu && !stopped) {
+          simulation = gpu
+          renderer = gpu
+          solverPath = 'webgpu'
+        }
+      } catch (err) {
+        console.warn('WebGPU initialization failed; using the CPU solver.', err)
+        const replacement = fluid.cloneNode(true)
+        fluid.replaceWith(replacement)
+        fluid = replacement
+        fluid.style.cssText = `${canvasCss}z-index:1;`
+      }
+    }
+
+    if (!simulation) {
+      simulation = new SPH({
+        width: first.w || 390,
+        height: (first.h || 844) * SCREENS,
+        maxParticles,
+        smoothingRadius: 32,
+        boundaryPadding: padding,
+      })
+      simulation.particleRadius = diameter * 0.32
+      try {
+        renderer = createRenderer(fluid, maxParticles)
+        renderer.setParticleDiameter(diameter)
+        solverPath = renderer.backend === 'Canvas 2D' ? 'cpu+canvas' : 'cpu+webgl2'
+      } catch (err) {
+        throw err
+      }
+    }
+
+    if (stopped) {
+      simulation.clear?.()
+      return
+    }
+
+    stopInner = run({
+      wrap,
+      frame,
+      bg,
+      overlay,
+      fluid,
+      bctx,
+      octx,
+      hud,
+      preview,
+      simulation,
+      renderer,
+      solverPath,
+      maxParticles,
+      diameter,
+    })
+    } catch (err) {
+      console.error('waterfall boot failed', err)
+    }
+  }
+
+  boot().catch((err) => {
+    console.error(err)
+  })
+
+  return () => {
+    stopped = true
+    stopInner()
+  }
+}
+
+function run({
+  wrap,
+  frame,
+  bg,
+  overlay,
+  fluid,
+  bctx,
+  octx,
+  hud,
+  preview,
+  simulation,
+  renderer,
+  solverPath,
+  diameter,
+}) {
   let w = 390
   let h = 844
-  let dpr = 1
   let worldH = h * SCREENS
   let camY = 0
-  let cols = 1
-  let rows = 1
-  let head = new Int32Array(1)
-  const pool = new Float32Array(SPRINGS)
-  const poolV = new Float32Array(SPRINGS)
-  const boats = []
+  let dpr = 1
   const strokes = []
-  const pts = new Map()
+  const segs = []
+  const pointers = new Map()
+  let mode = 'idle'
   let drawing = null
-  let lastCy = 0
-  let pressure = preview ? 'medium' : 'medium'
+  let scrollY = 0
+  let touchPrimary = false
+  let pressure = 'medium'
   let raf = 0
   let last = performance.now()
   let acc = 0
   let emitAcc = 0
-  let tickN = 0
+  let spawned = 0
+  let spawnT0 = performance.now()
   let fpsEma = 60
-  let peakImpact = 0
+  let vol = 0
+  let poolBase = POOL_MIN
+  const pool = new Float32Array(SPRINGS)
+  const poolV = new Float32Array(SPRINGS)
+  const boats = []
+  const buffers = new Map()
+  const trigs = []
   let analyser = null
   let bus = null
-  let ambient = null
-  let ambientGain = null
-  const buffers = new Map()
-  let sfxAt = 0
+  let limiter = null
+  let flowGain = null
+  let flowFilt = null
+  let flowSrc = null
+  let flowLfo = 0
   let rmsPeak = 0
   const rmsBuf = new Uint8Array(128)
+  let gpuPull = 0
+  let renderScale = 1
+  let lastQuality = 0
 
   function live() {
     return isLive()
@@ -182,71 +309,51 @@ export function mount(stage, { still, peek } = {}) {
 
   function setCam(y) {
     camY = clamp(y, 0, maxCam())
+    renderer.setCamera?.(camY)
+    simulation.setCamera?.(camY)
+  }
+
+  function rebuildSegs() {
+    segs.length = 0
+    for (const s of strokes) {
+      for (const g of s.segs) segs.push(g)
+    }
+    const rad = (simulation.particleRadius || diameter * 0.32) + STROKE_R * 0.52
+    simulation.setCapsules?.(segs, rad)
   }
 
   function resetPool() {
     pool.fill(0)
     poolV.fill(0)
+    vol = 0
+    poolBase = POOL_MIN
+    simulation.setFloor?.(worldH - poolBase)
   }
 
   function resetBoats() {
     boats.length = 0
-    const n = 3
-    for (let i = 0; i < n; i++) {
+    for (let i = 0; i < 4; i++) {
       boats.push({
-        x: w * (0.22 + i * 0.28),
-        vx: 0,
+        x: w * (0.16 + i * 0.22),
+        vx: (i % 2 ? 8 : -6) * 0.15,
         bob: 0,
         vb: 0,
         a: 0,
-        va: 0,
+        _y: worldH - poolBase,
       })
     }
-  }
-
-  function clearParticles() {
-    alive.fill(0)
-    count = 0
-    freeN = 0
-    for (let i = 0; i < MAX; i++) free[freeN++] = i
-  }
-
-  function spawn(x, y, sx, sy) {
-    if (freeN <= 0) return -1
-    const i = free[--freeN]
-    alive[i] = 1
-    loc[i] = count
-    liveAt[count] = i
-    px[i] = x
-    py[i] = y
-    ox[i] = x
-    oy[i] = y
-    vx[i] = sx
-    vy[i] = sy
-    count += 1
-    return i
-  }
-
-  function kill(i) {
-    if (!alive[i]) return
-    alive[i] = 0
-    const slot = loc[i]
-    const lastI = liveAt[--count]
-    liveAt[slot] = lastI
-    loc[lastI] = slot
-    free[freeN++] = i
   }
 
   function addStroke(points) {
     const pts2 = smoothStroke(points)
     if (pts2.length < 2) return null
-    const segs = []
+    const strokeSegs = []
     for (let i = 0; i < pts2.length - 1; i++) {
-      segs.push({ ax: pts2[i].x, ay: pts2[i].y, bx: pts2[i + 1].x, by: pts2[i + 1].y })
+      strokeSegs.push({ ax: pts2[i].x, ay: pts2[i].y, bx: pts2[i + 1].x, by: pts2[i + 1].y })
     }
-    const stroke = { pts: pts2, segs }
-    strokes.push(stroke)
-    return stroke
+    strokes.push({ pts: pts2, segs: strokeSegs })
+    rebuildSegs()
+    return strokes[strokes.length - 1]
   }
 
   function seedDemo() {
@@ -273,140 +380,76 @@ export function mount(stage, { still, peek } = {}) {
     const u = clamp(x / w, 0, 0.999) * (SPRINGS - 1)
     const i = u | 0
     const f = u - i
-    const a = POOL + pool[i]
-    const b = POOL + pool[Math.min(SPRINGS - 1, i + 1)]
-    return worldH - (a * (1 - f) + b * f)
+    const wave = pool[i] * (1 - f) + pool[Math.min(SPRINGS - 1, i + 1)] * f
+    return worldH - (poolBase + wave)
   }
 
   function splashPool(x, amp) {
     const u = clamp(x / w, 0, 0.999) * (SPRINGS - 1)
     const i = u | 0
     poolV[i] += amp
-    if (i > 0) poolV[i - 1] += amp * 0.45
-    if (i < SPRINGS - 1) poolV[i + 1] += amp * 0.45
+    if (i > 0) poolV[i - 1] += amp * 0.4
+    if (i < SPRINGS - 1) poolV[i + 1] += amp * 0.4
   }
 
-  function collideSegs(i, hdt) {
-    let hit = 0
-    const rad = R + STROKE_R
-    for (const s of strokes) {
-      for (const g of s.segs) {
-        const c = distSeg(px[i], py[i], g.ax, g.ay, g.bx, g.by)
-        if (c.d >= rad || c.d < 1e-5) continue
-        const nx = c.nx / c.d
-        const ny = c.ny / c.d
-        const pen = rad - c.d
-        px[i] += nx * pen
-        py[i] += ny * pen
-        const vn = vx[i] * nx + vy[i] * ny
-        if (vn < 0) {
-          const flat = Math.abs(g.bx - g.ax) > Math.abs(g.by - g.ay) * 2.2
-          const rest = flat ? 0.38 : 0.08
-          vx[i] -= (1 + rest) * vn * nx
-          vy[i] -= (1 + rest) * vn * ny
-          const tx = (g.bx - g.ax) / (c.len || 1)
-          const ty = (g.by - g.ay) / (c.len || 1)
-          const mid = (g.ax + g.bx) * 0.5
-          const out = px[i] >= mid ? 1 : -1
-          if (flat) {
-            vx[i] += tx * out * 18 + nx * 12
-            vy[i] *= 0.72
-          } else {
-            const along = vx[i] * tx + vy[i] * ty
-            vx[i] = tx * along * 0.98
-            vy[i] = ty * along * 0.98
-          }
-          hit = Math.max(hit, -vn)
-        }
+  function mergeAt(x, energy) {
+    vol += 1
+    const rise = (diameter * 0.42 * diameter * 0.42) / Math.max(80, w)
+    poolBase = Math.min(worldH - 10, POOL_MIN + vol * rise)
+    splashPool(x, Math.min(10, 0.012 * energy + 0.35))
+    simulation.setFloor?.(worldH - poolBase)
+    for (const b of boats) {
+      if (Math.abs(b.x - x) < 42) {
+        b.vx += (Math.random() - 0.5) * 4
+        b.vb -= Math.min(18, energy * 0.025)
+        b.a += x < b.x ? 0.02 : -0.02
       }
     }
-    return hit
+    if (energy > 180) sfxSplash(energy)
+    else if (energy > 80 && Math.random() < 0.18) sfxDrip()
+    else sfxLap()
   }
 
-  function rebuildHash() {
-    const need = cols * rows
-    if (head.length < need) head = new Int32Array(need)
-    head.fill(-1, 0, need)
-    for (let n = 0; n < count; n++) {
-      const i = liveAt[n]
-      const cx = clamp((px[i] / CELL) | 0, 0, cols - 1)
-      const cy = clamp((py[i] / CELL) | 0, 0, rows - 1)
-      const c = cy * cols + cx
-      next[i] = head[c]
-      head[c] = i
-    }
+  function noteTrig() {
+    const now = performance.now()
+    while (trigs.length && now - trigs[0] > 1000) trigs.shift()
+    if (trigs.length >= TRIG_MAX) return false
+    if (trigs.length && now - trigs[trigs.length - 1] < 220) return false
+    trigs.push(now)
+    return true
   }
 
-  function solveNeighbors() {
-    if (count < 2) return
-    const rest = R * 2 * 0.94
-    for (let n = 0; n < count; n++) {
-      const i = liveAt[n]
-      const cx = clamp((px[i] / CELL) | 0, 0, cols - 1)
-      const cy = clamp((py[i] / CELL) | 0, 0, rows - 1)
-      for (let oy = -1; oy <= 1; oy++) {
-        const ry = cy + oy
-        if (ry < 0 || ry >= rows) continue
-        for (let oxc = -1; oxc <= 1; oxc++) {
-          const rx = cx + oxc
-          if (rx < 0 || rx >= cols) continue
-                    let j = head[ry * cols + rx]
-          let hops = 0
-          while (j >= 0 && hops++ < MAX) {
-            if (j > i && alive[j]) {
-              let dx = px[j] - px[i]
-              let dy = py[j] - py[i]
-              const d2 = dx * dx + dy * dy
-              if (d2 > 0.0001 && d2 < rest * rest) {
-                const d = Math.sqrt(d2)
-                const pen = (rest - d) * STIFF * 0.5
-                dx /= d
-                dy /= d
-                px[i] -= dx * pen
-                py[i] -= dy * pen
-                px[j] += dx * pen
-                py[j] += dy * pen
-                const avx = (vx[i] + vx[j]) * 0.5
-                const avy = (vy[i] + vy[j]) * 0.5
-                vx[i] += (avx - vx[i]) * VISC
-                vy[i] += (avy - vy[i]) * VISC
-                vx[j] += (avx - vx[j]) * VISC
-                vy[j] += (avy - vy[j]) * VISC
-              }
-            }
-            j = next[j]
-          }
-        }
-      }
-    }
+  function trigPerSec() {
+    const now = performance.now()
+    while (trigs.length && now - trigs[0] > 1000) trigs.shift()
+    return trigs.length
   }
 
   function stepPool(hdt) {
-    const k = 42
-    const damp = 0.14
-    const spread = 0.28
+    const k = 36
+    const damp = 0.16
+    const spread = 0.32
     for (let i = 0; i < SPRINGS; i++) {
       const left = pool[i > 0 ? i - 1 : i]
       const right = pool[i < SPRINGS - 1 ? i + 1 : i]
-      const force = -k * pool[i] + (left + right - 2 * pool[i]) * spread * 60
+      const force = -k * pool[i] + (left + right - 2 * pool[i]) * spread * 50
       poolV[i] = (poolV[i] + force * hdt) * (1 - damp)
-      pool[i] += poolV[i] * hdt
-      pool[i] = clamp(pool[i], -28, 46)
+      pool[i] = clamp(pool[i] + poolV[i] * hdt, -18, 22)
     }
   }
 
   function stepBoats(hdt) {
     for (const b of boats) {
-      const yL = poolY(b.x - 16)
-      const yR = poolY(b.x + 16)
+      const yL = poolY(b.x - 18)
+      const yR = poolY(b.x + 18)
       const y = (yL + yR) * 0.5
-      const slope = Math.atan2(yR - yL, 32)
-      b.a += (slope * 0.7 - b.a) * 6 * hdt
-      b.vx += slope * 26 * hdt
-      b.vx *= 0.985
-      b.x = clamp(b.x + b.vx * hdt, 22, w - 22)
-      b.vb += (-b.bob * 18 - b.vb * 2.4) * hdt
-      b.bob += b.vb * hdt
+      const slope = Math.atan2(yR - yL, 36)
+      b.a += (slope * 0.75 - b.a) * 5 * hdt
+      b.vx += slope * 22 * hdt
+      b.vx *= 0.988
+      b.x = clamp(b.x + b.vx * hdt, 28, w - 28)
+      b.vb += (-b.bob * 16 - b.vb * 2.2) * hdt
+      b.bob = clamp(b.bob + b.vb * hdt, -10, 10)
       b._y = y + b.bob
     }
   }
@@ -418,63 +461,19 @@ export function mount(stage, { still, peek } = {}) {
     while (emitAcc >= 1) {
       emitAcc -= 1
       const jx = (Math.random() - 0.5) * p.spread
-      spawn(w * 0.5 + jx, 22 + Math.random() * 6, jx * 2.2, p.speed * (0.85 + Math.random() * 0.2))
+      const ok = simulation.addParticle(
+        w * 0.5 + jx,
+        22 + Math.random() * 6,
+        jx * 1.4,
+        p.speed * (0.88 + Math.random() * 0.18),
+      )
+      if (ok) spawned += 1
     }
   }
 
-  function integrate(hdt) {
-    peakImpact = 0
-    emit(hdt)
-    for (let n = 0; n < count; n++) {
-      const i = liveAt[n]
-      ox[i] = px[i]
-      oy[i] = py[i]
-      vy[i] += G * hdt
-      vx[i] *= 0.999
-      px[i] += vx[i] * hdt
-      py[i] += vy[i] * hdt
-      if (px[i] < R) {
-        px[i] = R
-        vx[i] = Math.abs(vx[i]) * REST
-      } else if (px[i] > w - R) {
-        px[i] = w - R
-        vx[i] = -Math.abs(vx[i]) * REST
-      }
-      if (py[i] < 4) {
-        py[i] = 4
-        vy[i] = Math.abs(vy[i]) * 0.1
-      }
-      const hit = collideSegs(i, hdt)
-      if (hit > peakImpact) peakImpact = hit
-      const surface = poolY(px[i])
-      if (py[i] > surface - R) {
-        const speed = Math.hypot(vx[i], vy[i])
-        splashPool(px[i], Math.min(18, 0.018 * speed + 0.8))
-        for (const b of boats) {
-          const d = Math.abs(b.x - px[i])
-          if (d < 36) {
-            b.vx += vx[i] * 0.012
-            b.vb -= Math.min(22, speed * 0.03)
-            b.a += (px[i] < b.x ? 0.01 : -0.01)
-          }
-        }
-        if (speed > 90) sfxImpact(speed, px[i])
-        else if (Math.random() < 0.08) sfxDrip()
-        kill(i)
-        continue
-      }
-      if (py[i] > worldH + 24 || px[i] < -40 || px[i] > w + 40) kill(i)
-    }
-    rebuildHash()
-    if ((++tickN & 1) === 0) solveNeighbors()
-    for (let n = 0; n < count; n++) {
-      const i = liveAt[n]
-      vx[i] = (px[i] - ox[i]) / hdt
-      vy[i] = (py[i] - oy[i]) / hdt
-    }
-    stepPool(hdt)
-    stepBoats(hdt)
-    if (peakImpact > 140) sfxImpact(peakImpact)
+  function drainPool() {
+    const floor = worldH - poolBase + 6
+    simulation.drainBelow?.(floor, (x, energy) => mergeAt(x, energy))
   }
 
   function audioGraph() {
@@ -483,12 +482,24 @@ export function mount(stage, { still, peek } = {}) {
     if (!ac || !master || silent()) return null
     if (!bus || bus.context !== ac) {
       bus = ac.createGain()
-      bus.gain.value = 1
+      bus.gain.value = 0.55
+      if (typeof ac.createDynamicsCompressor === 'function') {
+        limiter = ac.createDynamicsCompressor()
+        limiter.threshold.value = -24
+        limiter.knee.value = 10
+        limiter.ratio.value = 14
+        limiter.attack.value = 0.003
+        limiter.release.value = 0.26
+      } else {
+        limiter = ac.createGain()
+        limiter.gain.value = 0.7
+      }
       analyser = ac.createAnalyser()
       analyser.fftSize = 256
-      analyser.smoothingTimeConstant = 0.45
-      bus.connect(analyser)
-      bus.connect(master)
+      analyser.smoothingTimeConstant = 0.55
+      bus.connect(limiter)
+      limiter.connect(analyser)
+      limiter.connect(master)
     }
     return ac
   }
@@ -508,7 +519,7 @@ export function mount(stage, { still, peek } = {}) {
     }
   }
 
-  function playBuf(name, sound, amp, rate = 1) {
+  function playSoft(name, sound, amp, { rate = 1, lp = 720, attack = 0.05, dur = 0.9 } = {}) {
     if (!canPlay()) return
     const ac = audioGraph()
     if (!ac || !bus) return
@@ -518,9 +529,17 @@ export function mount(stage, { still, peek } = {}) {
       const src = ac.createBufferSource()
       src.buffer = buf
       src.playbackRate.value = rate
+      const f = ac.createBiquadFilter()
+      f.type = 'lowpass'
+      f.frequency.value = lp
+      f.Q.value = 0.5
       const g = ac.createGain()
-      g.gain.value = amp
-      src.connect(g)
+      const t = ac.currentTime
+      g.gain.setValueAtTime(0.0001, t)
+      g.gain.exponentialRampToValueAtTime(Math.max(0.0002, amp), t + attack)
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur)
+      src.connect(f)
+      f.connect(g)
       g.connect(bus)
       src.start()
     } catch {
@@ -528,61 +547,93 @@ export function mount(stage, { still, peek } = {}) {
     }
   }
 
-  function ensureAmbient() {
-    if (ambient || silent() || !canPlay()) return
+  function ensureFlow() {
+    if (flowSrc || silent() || !canPlay()) return
     const ac = audioGraph()
     if (!ac || !bus) return
-    const buf = bufFor('rainLoop', rainLoop)
+    const buf = bufFor('flowBed', FLOW_PATCH)
+    const wave = bufFor('ocean', oceanWave)
     if (!buf) return
     try {
       const src = ac.createBufferSource()
       src.buffer = buf
       src.loop = true
-      ambientGain = ac.createGain()
-      ambientGain.gain.value = 0
-      src.connect(ambientGain)
-      ambientGain.connect(bus)
+      flowFilt = ac.createBiquadFilter()
+      flowFilt.type = 'lowpass'
+      flowFilt.frequency.value = 460
+      flowFilt.Q.value = 0.35
+      const flowFilt2 = ac.createBiquadFilter()
+      flowFilt2.type = 'lowpass'
+      flowFilt2.frequency.value = 380
+      flowFilt2.Q.value = 0.4
+      flowGain = ac.createGain()
+      flowGain.gain.value = 0.0001
+      src.connect(flowFilt)
+      flowFilt.connect(flowFilt2)
+      flowFilt2.connect(flowGain)
+      flowGain.connect(bus)
       src.start()
-      ambient = src
+      flowSrc = src
+      if (wave) {
+        const src2 = ac.createBufferSource()
+        src2.buffer = wave
+        src2.loop = true
+        const g2 = ac.createGain()
+        g2.gain.value = 0.35
+        const f2 = ac.createBiquadFilter()
+        f2.type = 'lowpass'
+        f2.frequency.value = 420
+        src2.connect(f2)
+        f2.connect(g2)
+        g2.connect(flowGain)
+        src2.start()
+      }
     } catch {
-      ambient = null
+      flowSrc = null
     }
   }
 
-  function sfxImpact(energy, x = w * 0.5) {
-    const now = performance.now()
-    if (now - sfxAt < 70) return
-    sfxAt = now
+  function sfxSplash(energy) {
+    if (!noteTrig()) return
     unlock()
-    ensureAmbient()
-    const amp = clamp(0.18 + energy / 900, 0.18, 0.7)
-    if (energy > 280) playBuf('dive', diveSplash, amp, 0.92 + Math.random() * 0.16)
-    else playBuf('splash', splash, amp, 0.9 + Math.random() * 0.2)
-    if (Math.random() < 0.35) playBuf('bubble', bubble, amp * 0.35, 1)
-    void x
+    ensureFlow()
+    const amp = clamp(0.02 + energy / 14000, 0.02, 0.055)
+    playSoft('splash', splash, amp, { rate: 0.62 + Math.random() * 0.22, lp: 520, attack: 0.08, dur: 1.15 })
   }
 
   function sfxDrip() {
-    const now = performance.now()
-    if (now - sfxAt < 110) return
-    sfxAt = now
+    if (!noteTrig()) return
     unlock()
-    playBuf(Math.random() < 0.5 ? 'drop' : 'rain', Math.random() < 0.5 ? waterDrop : rainDrop, 0.22, 0.92 + Math.random() * 0.2)
+    playSoft('drip', waterDrop, 0.018, { rate: 0.55 + Math.random() * 0.3, lp: 480, attack: 0.1, dur: 0.7 })
+  }
+
+  function sfxLap() {
+    if (Math.random() > 0.28) return
+    if (!noteTrig()) return
+    unlock()
+    ensureFlow()
+    playSoft('lap', oceanWave, 0.03, { rate: 0.58 + Math.random() * 0.22, lp: 400, attack: 0.14, dur: 1.6 })
   }
 
   function tickAmbient() {
     if (!soundOn() || silent()) {
       try {
-        ambientGain?.gain.setTargetAtTime(0, getContext()?.currentTime || 0, 0.08)
+        flowGain?.gain.setTargetAtTime(0.0001, getContext()?.currentTime || 0, 0.12)
       } catch {
         /* */
       }
       return
     }
-    ensureAmbient()
-    if (!ambientGain || !getContext()) return
+    ensureFlow()
+    if (!flowGain || !getContext()) return
     try {
-      ambientGain.gain.setTargetAtTime(PRESS[pressure].ambient, getContext().currentTime, 0.12)
+      const t = getContext().currentTime
+      flowLfo += 0.012
+      const p = PRESS[pressure]
+      const flowAmt = clamp(simulation.count / 110 + p.rate / 180, 0.25, 1)
+      const g = p.ambient * 0.42 * flowAmt * (0.86 + Math.sin(flowLfo) * 0.14)
+      flowGain.gain.setTargetAtTime(g, t, 0.28)
+      flowFilt?.frequency.setTargetAtTime(400 + p.rate * 0.7, t, 0.35)
     } catch {
       /* */
     }
@@ -605,229 +656,326 @@ export function mount(stage, { still, peek } = {}) {
     }
   }
 
-  function paintFluid() {
-    if (count < 1) return
-    const scale = 0.4
-    const fw = Math.max(2, (w * scale) | 0)
-    const fh = Math.max(2, (h * scale) | 0)
-    if (fluid.width !== fw) fluid.width = fw
-    if (fluid.height !== fh) fluid.height = fh
-    fctx.setTransform(1, 0, 0, 1, 0, 0)
-    fctx.clearRect(0, 0, fw, fh)
-    fctx.fillStyle = ICE_SOFT
-    const top = camY - 16
-    const bot = camY + h + 16
-    const rad = R * scale * 1.65
-    let drawn = 0
-    fctx.beginPath()
-    for (let n = 0; n < count; n++) {
-      const i = liveAt[n]
-      if (py[i] < top || py[i] > bot) continue
-      fctx.moveTo(px[i] * scale + rad, (py[i] - camY) * scale)
-      fctx.arc(px[i] * scale, (py[i] - camY) * scale, rad, 0, TAU)
-      drawn += 1
-    }
-    fctx.fill()
-    if (!drawn) return
-    ctx.imageSmoothingEnabled = true
-    ctx.drawImage(fluid, 0, 0, w, h)
+  function size2d(canvas, ctx, width, height, ratio) {
+    const bw = Math.max(1, Math.round(width * ratio))
+    const bh = Math.max(1, Math.round(height * ratio))
+    if (canvas.width !== bw) canvas.width = bw
+    if (canvas.height !== bh) canvas.height = bh
+    canvas.style.width = `${width}px`
+    canvas.style.height = `${height}px`
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0)
   }
 
   function drawBoat(b) {
     const x = b.x
-    const y = b._y - camY
-    if (y < -30 || y > h + 30) return
-    ctx.save()
-    ctx.translate(x, y)
-    ctx.rotate(b.a)
-    ctx.strokeStyle = ICE
-    ctx.fillStyle = 'rgba(183,236,255,0.14)'
-    ctx.lineWidth = 1
-    ctx.beginPath()
-    ctx.moveTo(-16, 4)
-    ctx.quadraticCurveTo(0, 12, 16, 4)
-    ctx.lineTo(12, 0)
-    ctx.lineTo(-12, 0)
-    ctx.closePath()
-    ctx.fill()
-    ctx.stroke()
-    ctx.beginPath()
-    ctx.moveTo(0, 0)
-    ctx.lineTo(0, -22)
-    ctx.stroke()
-    ctx.beginPath()
-    ctx.moveTo(0, -22)
-    ctx.lineTo(12, -6)
-    ctx.lineTo(0, -4)
-    ctx.closePath()
-    ctx.fill()
-    ctx.stroke()
-    ctx.restore()
+    const y = (b._y || poolY(b.x)) - camY
+    if (y < -40 || y > h + 40) return
+    octx.save()
+    octx.translate(x, y)
+    octx.rotate(b.a)
+    octx.strokeStyle = ICE
+    octx.fillStyle = 'rgba(183,236,255,0.18)'
+    octx.lineWidth = 1.5
+    octx.beginPath()
+    octx.moveTo(-20, 5)
+    octx.quadraticCurveTo(0, 16, 20, 5)
+    octx.lineTo(14, -1)
+    octx.lineTo(-14, -1)
+    octx.closePath()
+    octx.fill()
+    octx.stroke()
+    octx.beginPath()
+    octx.moveTo(-1, -1)
+    octx.lineTo(-1, -28)
+    octx.stroke()
+    octx.beginPath()
+    octx.moveTo(-1, -28)
+    octx.lineTo(16, -8)
+    octx.lineTo(-1, -5)
+    octx.closePath()
+    octx.fill()
+    octx.stroke()
+    octx.restore()
+  }
+
+  function paintBg() {
+    bctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    bctx.fillStyle = BG
+    bctx.fillRect(0, 0, w, h)
+    bctx.save()
+    bctx.translate(0, -camY)
+    bctx.strokeStyle = 'rgba(183,236,255,0.08)'
+    bctx.lineWidth = 1
+    const g0 = ((camY / 96) | 0) * 96
+    for (let y = g0; y <= camY + h + 96; y += 96) {
+      bctx.beginPath()
+      bctx.moveTo(0, y)
+      bctx.lineTo(w, y)
+      bctx.stroke()
+    }
+    bctx.beginPath()
+    bctx.moveTo(w * 0.5 - 10, 8)
+    bctx.lineTo(w * 0.5 + 10, 8)
+    bctx.lineTo(w * 0.5, 18)
+    bctx.closePath()
+    bctx.strokeStyle = ICE
+    bctx.stroke()
+    bctx.beginPath()
+    bctx.moveTo(0, worldH)
+    for (let i = 0; i < SPRINGS; i++) {
+      const x = (i / (SPRINGS - 1)) * w
+      bctx.lineTo(x, worldH - (poolBase + pool[i]))
+    }
+    bctx.lineTo(w, worldH)
+    bctx.closePath()
+    bctx.fillStyle = 'rgba(183,236,255,0.55)'
+    bctx.fill()
+    bctx.restore()
+  }
+
+  function paintOverlay() {
+    octx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    octx.clearRect(0, 0, w, h)
+    octx.save()
+    octx.translate(0, -camY)
+    octx.lineJoin = 'round'
+    octx.lineCap = 'round'
+    octx.strokeStyle = ICE
+    octx.shadowColor = 'transparent'
+    octx.shadowBlur = 0
+    octx.lineWidth = STROKE_R * 1.05
+    for (const s of strokes) {
+      if (s.pts.length < 2) continue
+      octx.beginPath()
+      octx.moveTo(s.pts[0].x, s.pts[0].y)
+      for (let i = 1; i < s.pts.length; i++) octx.lineTo(s.pts[i].x, s.pts[i].y)
+      octx.stroke()
+    }
+    if (drawing && drawing.length > 1) {
+      octx.globalAlpha = 0.7
+      octx.beginPath()
+      octx.moveTo(drawing[0].x, drawing[0].y)
+      for (let i = 1; i < drawing.length; i++) octx.lineTo(drawing[i].x, drawing[i].y)
+      octx.stroke()
+      octx.globalAlpha = 1
+    }
+    octx.shadowBlur = 0
+    octx.beginPath()
+    octx.moveTo(0, worldH - (poolBase + pool[0]))
+    for (let i = 1; i < SPRINGS; i++) {
+      const x = (i / (SPRINGS - 1)) * w
+      octx.lineTo(x, worldH - (poolBase + pool[i]))
+    }
+    octx.strokeStyle = ICE_SOFT
+    octx.lineWidth = 1.4
+    octx.stroke()
+    for (const b of boats) drawBoat(b)
+    octx.restore()
   }
 
   function draw() {
-    clearBacking(canvas, ctx, dpr)
-    ctx.fillStyle = BG
-    ctx.fillRect(0, 0, w, h)
-    ctx.save()
-    ctx.translate(0, -camY)
-    ctx.strokeStyle = 'rgba(183,236,255,0.08)'
-    ctx.lineWidth = 1
-    const g0 = ((camY / 96) | 0) * 96
-    for (let y = g0; y <= camY + h + 96; y += 96) {
-      ctx.beginPath()
-      ctx.moveTo(0, y)
-      ctx.lineTo(w, y)
-      ctx.stroke()
+    try {
+      paintBg()
+    } catch (err) {
+      console.error('waterfall bg', err)
     }
-    ctx.beginPath()
-    ctx.moveTo(w * 0.5 - 10, 8)
-    ctx.lineTo(w * 0.5 + 10, 8)
-    ctx.lineTo(w * 0.5, 18)
-    ctx.closePath()
-    ctx.strokeStyle = ICE
-    ctx.stroke()
-    ctx.restore()
+    try {
+      renderer.setCamera?.(camY)
+      renderer.render(simulation)
+    } catch (err) {
+      console.error('waterfall fluid', err)
+    }
+    try {
+      paintOverlay()
+    } catch (err) {
+      console.error('waterfall overlay', err)
+    }
+  }
 
-    paintFluid()
-
-    ctx.save()
-    ctx.translate(0, -camY)
-    ctx.lineJoin = 'round'
-    ctx.lineCap = 'round'
-    ctx.strokeStyle = ICE
-    ctx.shadowColor = 'rgba(183,236,255,0.35)'
-    ctx.shadowBlur = 8
-    ctx.lineWidth = STROKE_R * 1.15
-    for (const s of strokes) {
-      if (s.pts.length < 2) continue
-      ctx.beginPath()
-      ctx.moveTo(s.pts[0].x, s.pts[0].y)
-      for (let i = 1; i < s.pts.length; i++) ctx.lineTo(s.pts[i].x, s.pts[i].y)
-      ctx.stroke()
-    }
-    if (drawing && drawing.length > 1) {
-      ctx.globalAlpha = 0.7
-      ctx.beginPath()
-      ctx.moveTo(drawing[0].x, drawing[0].y)
-      for (let i = 1; i < drawing.length; i++) ctx.lineTo(drawing[i].x, drawing[i].y)
-      ctx.stroke()
-      ctx.globalAlpha = 1
-    }
-    ctx.shadowBlur = 0
-    ctx.beginPath()
-    ctx.moveTo(0, worldH)
-    for (let i = 0; i < SPRINGS; i++) {
-      const x = (i / (SPRINGS - 1)) * w
-      ctx.lineTo(x, worldH - (POOL + pool[i]))
-    }
-    ctx.lineTo(w, worldH)
-    ctx.closePath()
-    ctx.fillStyle = 'rgba(183,236,255,0.16)'
-    ctx.fill()
-    ctx.strokeStyle = ICE_SOFT
-    ctx.lineWidth = 1.2
-    ctx.stroke()
-    for (const b of boats) drawBoat(b)
-    ctx.restore()
+  function pixelRatio() {
+    const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
+    const cap = coarse ? 1 : 1.25
+    return Math.min(window.devicePixelRatio || 1, cap) * renderScale
   }
 
   function layout() {
-    const nextFit = fitCanvas(canvas, ctx, frame)
-    if (!nextFit.ok) return
-    w = nextFit.w
-    h = nextFit.h
-    const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
-    dpr = Math.min(coarse ? 1 : 1.25, nextFit.dpr)
-    const bw = Math.max(1, Math.round(w * dpr))
-    const bh = Math.max(1, Math.round(h * dpr))
-    if (canvas.width !== bw) canvas.width = bw
-    if (canvas.height !== bh) canvas.height = bh
-    canvas.style.width = `${w}px`
-    canvas.style.height = `${h}px`
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    const box = viewSize(frame)
+    if (box.w < 2 || box.h < 2) return
+    w = box.w
+    h = box.h
+    dpr = pixelRatio()
     worldH = h * SCREENS
-    cols = Math.max(1, Math.ceil(w / CELL) + 2)
-    rows = Math.max(1, Math.ceil(worldH / CELL) + 2)
+    size2d(bg, bctx, w, h, dpr)
+    size2d(overlay, octx, w, h, dpr)
+    simulation.resize(w, worldH, dpr)
+    simulation.setBoundaryPadding?.(diameter * 0.45)
+    if (simulation.setView) simulation.setView(w, h, dpr, camY)
+    else renderer.resize(w, h, dpr)
+    renderer.setParticleDiameter?.(diameter)
+    renderer.setCamera?.(camY)
     setCam(camY)
+    simulation.setFloor?.(worldH - poolBase)
     if (!boats.length) resetBoats()
-    else {
-      for (let i = 0; i < boats.length; i++) boats[i].x = clamp(boats[i].x, 22, w - 22)
-    }
+    else for (const b of boats) b.x = clamp(b.x, 28, w - 28)
   }
 
   function resetWorld() {
     strokes.length = 0
     drawing = null
-    clearParticles()
+    mode = 'idle'
+    pointers.clear()
+    rebuildSegs()
+    simulation.clear()
     resetPool()
     resetBoats()
     setCam(0)
     emitAcc = 0
-    peakImpact = 0
+    spawned = 0
+    spawnT0 = performance.now()
     if (preview) seedDemo()
   }
 
-  function undoStroke() {
-    strokes.pop()
+  function hudTarget(t) {
+    return !!(t && t.closest && t.closest('button, .wf-undo, .wf-reset, [data-rate]'))
   }
 
-  function worldFromEvent(e) {
-    const r = canvas.getBoundingClientRect()
-    return { x: e.clientX - r.left, y: e.clientY - r.top + camY, cy: e.clientY, cx: e.clientX }
+  function pointFrom(e) {
+    const r = wrap.getBoundingClientRect()
+    return {
+      x: e.clientX - r.left,
+      y: e.clientY - r.top + camY,
+      sx: e.clientX,
+      sy: e.clientY,
+    }
   }
 
-  function centroidCy() {
+  function centroidSy() {
     let s = 0
-    for (const p of pts.values()) s += p.cy
-    return s / pts.size
+    for (const p of pointers.values()) s += p.sy
+    return s / pointers.size
+  }
+
+  function endDraw(commit) {
+    if (commit && drawing && drawing.length >= 2) addStroke(drawing)
+    drawing = null
   }
 
   function onDown(e) {
+    if (hudTarget(e.target)) return
     if (e.pointerType === 'mouse' && e.button !== 0) return
     if (!live() && !preview) return
+    e.preventDefault?.()
     try {
-      canvas.setPointerCapture(e.pointerId)
+      wrap.setPointerCapture?.(e.pointerId)
     } catch {
       /* */
     }
-    pts.set(e.pointerId, worldFromEvent(e))
-    lastCy = centroidCy()
     unlock()
-    if (pts.size >= 2) {
-      drawing = null
-      return
+    pointers.set(e.pointerId, pointFrom(e))
+    if (pointers.size === 1) {
+      mode = 'draw'
+      drawing = [pointFrom(e)]
+      scrollY = e.clientY
+    } else {
+      endDraw(true)
+      mode = 'scroll'
+      scrollY = centroidSy()
     }
-    drawing = [worldFromEvent(e)]
   }
 
   function onMove(e) {
-    if (!pts.has(e.pointerId)) return
-    pts.set(e.pointerId, worldFromEvent(e))
-    if (pts.size >= 2) {
+    if (!pointers.has(e.pointerId)) return
+    e.preventDefault?.()
+    pointers.set(e.pointerId, pointFrom(e))
+    if (mode === 'scroll' || pointers.size >= 2) {
+      mode = 'scroll'
       drawing = null
-      const cy = centroidCy()
-      setCam(camY + (cy - lastCy))
-      lastCy = cy
+      const cy = centroidSy()
+      setCam(camY + (cy - scrollY))
+      scrollY = cy
       return
     }
-    if (drawing) {
-      const cur = pts.get(e.pointerId)
+    if (mode === 'draw' && drawing) {
+      const cur = pointers.get(e.pointerId)
       const lastP = drawing[drawing.length - 1]
-      if (Math.hypot(cur.x - lastP.x, cur.y - lastP.y) >= 1.6) drawing.push({ x: cur.x, y: cur.y })
+      if (Math.hypot(cur.x - lastP.x, cur.y - lastP.y) >= 1.5) drawing.push({ x: cur.x, y: cur.y })
     }
   }
 
   function onUp(e) {
-    if (!pts.has(e.pointerId)) return
-    pts.delete(e.pointerId)
-    if (drawing && drawing.length >= 2 && pts.size === 0) addStroke(drawing)
-    if (pts.size === 0) drawing = null
+    if (!pointers.has(e.pointerId)) return
+    pointers.delete(e.pointerId)
+    if (mode === 'draw' && pointers.size === 0) endDraw(true)
+    if (pointers.size === 0) {
+      mode = 'idle'
+      drawing = null
+    } else if (pointers.size === 1 && mode === 'scroll') {
+      scrollY = centroidSy()
+    }
   }
+
+  function onTouchStart(e) {
+    touchPrimary = true
+    e.preventDefault()
+    for (const t of e.changedTouches) {
+      onDown({
+        pointerId: t.identifier + 1000,
+        pointerType: 'touch',
+        button: 0,
+        clientX: t.clientX,
+        clientY: t.clientY,
+        target: e.target,
+        preventDefault: () => e.preventDefault(),
+      })
+    }
+  }
+
+  function onTouchMove(e) {
+    e.preventDefault()
+    for (const t of e.changedTouches) {
+      onMove({
+        pointerId: t.identifier + 1000,
+        pointerType: 'touch',
+        clientX: t.clientX,
+        clientY: t.clientY,
+        preventDefault: () => e.preventDefault(),
+      })
+    }
+  }
+
+  function onTouchEnd(e) {
+    e.preventDefault()
+    for (const t of e.changedTouches) onUp({ pointerId: t.identifier + 1000 })
+    if (!e.touches.length) touchPrimary = false
+  }
+
+  function onPointerSkipTouch(handler) {
+    return (e) => {
+      if (touchPrimary && e.pointerType === 'touch') return
+      handler(e)
+    }
+  }
+
+  wrap.addEventListener('pointerdown', onPointerSkipTouch(onDown))
+  wrap.addEventListener('pointermove', onPointerSkipTouch(onMove))
+  wrap.addEventListener('pointerup', onPointerSkipTouch(onUp))
+  wrap.addEventListener('pointercancel', onPointerSkipTouch(onUp))
+  wrap.addEventListener('lostpointercapture', onPointerSkipTouch(onUp))
+  wrap.addEventListener('touchstart', onTouchStart, { passive: false })
+  wrap.addEventListener('touchmove', onTouchMove, { passive: false })
+  wrap.addEventListener('touchend', onTouchEnd, { passive: false })
+  wrap.addEventListener('touchcancel', onTouchEnd, { passive: false })
+  const blockGesture = (e) => e.preventDefault()
+  wrap.addEventListener('gesturestart', blockGesture)
+  wrap.addEventListener('gesturechange', blockGesture)
+  wrap.addEventListener('gestureend', blockGesture)
+  wrap.addEventListener('contextmenu', (e) => e.preventDefault())
 
   function setPressure(next) {
     if (!PRESS[next]) return
     pressure = next
+    spawned = 0
+    spawnT0 = performance.now()
     hud.querySelectorAll('[data-rate]').forEach((btn) => {
       const on = btn.getAttribute('data-rate') === pressure
       btn.classList.toggle('is-on', on)
@@ -836,6 +984,10 @@ export function mount(stage, { still, peek } = {}) {
     tickAmbient()
   }
 
+  hud.addEventListener('pointerdown', (e) => {
+    if (!hudTarget(e.target)) return
+    e.stopPropagation()
+  })
   hud.addEventListener('click', (e) => {
     const rate = e.target.closest('[data-rate]')?.getAttribute('data-rate')
     if (rate) {
@@ -846,31 +998,14 @@ export function mount(stage, { still, peek } = {}) {
     if (e.target.closest('.wf-reset')) {
       unlock()
       resetWorld()
-      playBuf('ocean', oceanWave, 0.2)
       return
     }
     if (e.target.closest('.wf-undo')) {
       unlock()
-      undoStroke()
+      strokes.pop()
+      rebuildSegs()
     }
   })
-
-  canvas.addEventListener('pointerdown', onDown)
-  canvas.addEventListener('pointermove', onMove)
-  canvas.addEventListener('pointerup', onUp)
-  canvas.addEventListener('pointercancel', onUp)
-  canvas.addEventListener('contextmenu', (e) => e.preventDefault())
-  const blockGesture = (e) => e.preventDefault()
-  wrap.addEventListener('gesturestart', blockGesture)
-  wrap.addEventListener('gesturechange', blockGesture)
-  wrap.addEventListener('gestureend', blockGesture)
-  wrap.addEventListener(
-    'touchmove',
-    (e) => {
-      e.preventDefault()
-    },
-    { passive: false },
-  )
 
   function onKey(e) {
     if (!live()) return
@@ -883,19 +1018,25 @@ export function mount(stage, { still, peek } = {}) {
     }
   }
   window.addEventListener('keydown', onKey)
-
   const stopWatch = watchFrame(frame, layout)
+
+  function emitMeasured() {
+    const dt = (performance.now() - spawnT0) / 1000
+    return dt > 0.25 ? spawned / dt : PRESS[pressure].rate
+  }
 
   function stats() {
     let left = 0
     let right = 0
     let bowl = 0
     const cx = w * 0.5
-    for (let n = 0; n < count; n++) {
-      const i = liveAt[n]
-      if (px[i] < cx - 40) left += 1
-      if (px[i] > cx + 40) right += 1
-      if (py[i] > 300 && py[i] < 420 && Math.abs(px[i] - cx) < 70) bowl += 1
+    const xs = simulation.x
+    const ys = simulation.y
+    const n = simulation.count
+    for (let i = 0; i < n; i++) {
+      if (xs[i] < cx - 40) left += 1
+      if (xs[i] > cx + 40) right += 1
+      if (ys[i] > 240 && ys[i] < 430 && Math.abs(xs[i] - cx) < 90) bowl += 1
     }
     return {
       pressure,
@@ -904,18 +1045,34 @@ export function mount(stage, { still, peek } = {}) {
       worldH,
       viewH: h,
       viewW: w,
-      particles: count,
+      particles: n,
       strokes: strokes.length,
-      boats: boats.map((b) => ({ x: b.x, y: b._y, a: b.a, vx: b.vx, bob: b.bob })),
+      boats: boats.map((b) => ({
+        x: b.x,
+        y: b._y,
+        a: b.a,
+        vx: b.vx,
+        bob: b.bob,
+        onScreen: (b._y || 0) - camY > -40 && (b._y || 0) - camY < h + 40,
+      })),
       pool: Array.from(pool),
+      poolLevel: poolBase,
+      vol,
       fps: fpsEma,
       rms: readRms(),
       rmsPeak,
       splitLeft: left,
       splitRight: right,
       bowl,
+      crossings: simulation.crossings || 0,
+      emitRate: PRESS[pressure].rate,
+      prevEmitRate: PREV_PRESS[pressure],
+      emitMeasured: emitMeasured(),
+      trigPerSec: trigPerSec(),
       drawing: !!(drawing && drawing.length),
       ctxState: getContext()?.state || null,
+      solver: solverPath,
+      backend: renderer.backend,
     }
   }
 
@@ -926,32 +1083,60 @@ export function mount(stage, { still, peek } = {}) {
     fpsEma = fpsEma * 0.9 + (raw > 0 ? 1 / raw : 60) * 0.1
     if (live() || preview) {
       acc += raw
-      const hdt = DT / SUBS
       let steps = 0
-      const budget = now + 10
-      while (acc >= DT && steps < 2 && performance.now() < budget) {
-        for (let s = 0; s < SUBS; s++) integrate(hdt)
+      while (acc >= DT && steps < 2) {
+        try {
+          emit(DT)
+          simulation.step(DT)
+          drainPool()
+          stepPool(DT)
+          stepBoats(DT)
+        } catch (err) {
+          console.error('waterfall step', err)
+        }
         acc -= DT
         steps += 1
       }
       if (acc > DT * 4) acc = DT
+      if (simulation.pullParticles && now - gpuPull > 80) {
+        gpuPull = now
+        simulation.pullParticles().catch(() => {})
+      }
+      if (simulation.hitEnergy > 260) sfxSplash(simulation.hitEnergy)
       tickAmbient()
       readRms()
+      if (now - lastQuality > 4500) {
+        lastQuality = now
+        if (fpsEma < 22 && renderScale > 0.76) {
+          renderScale = 0.75
+          layout()
+        } else if (fpsEma > 40 && renderScale < 1) {
+          renderScale = 1
+          layout()
+        }
+      }
+    }
+    if (!live() && !preview) {
+      paintBg()
+      paintOverlay()
+      return
     }
     draw()
   }
 
-  function onStart() {
-    unlock()
-    ensureAmbient()
-  }
-
   function onPlay() {
-    onStart()
     if (!raf) {
       last = performance.now()
       raf = requestAnimationFrame(loop)
     }
+    setTimeout(() => {
+      try {
+        unlock()
+        ensureFlow()
+      } catch (err) {
+        console.warn('waterfall audio', err)
+      }
+    }, 120)
   }
 
   layout()
@@ -959,10 +1144,17 @@ export function mount(stage, { still, peek } = {}) {
   resetBoats()
   if (preview) {
     seedDemo()
-    for (let k = 0; k < 40; k++) integrate(DT)
+    for (let k = 0; k < 36; k++) {
+      emit(DT)
+      simulation.step(DT)
+      drainPool()
+      stepPool(DT)
+      stepBoats(DT)
+    }
     raf = requestAnimationFrame(loop)
   } else {
-    draw()
+    paintBg()
+    paintOverlay()
     window.addEventListener('playground-start', onPlay)
   }
 
@@ -971,17 +1163,30 @@ export function mount(stage, { still, peek } = {}) {
     rms: readRms,
     setPressure,
     reset: resetWorld,
-    undo: undoStroke,
+    undo: () => {
+      strokes.pop()
+      rebuildSegs()
+    },
     scrollTo: setCam,
     drawPolyline: (points) => addStroke(points),
     spawnAt: (x, y, n = 8) => {
-      for (let i = 0; i < n; i++) spawn(x + (Math.random() - 0.5) * 10, y, (Math.random() - 0.5) * 20, 40)
+      for (let i = 0; i < n; i++) {
+        simulation.addParticle(x + (Math.random() - 0.5) * 10, y, (Math.random() - 0.5) * 20, 40)
+      }
     },
     pourOnBoats: (n = 40) => {
       for (let i = 0; i < n; i++) {
         const b = boats[i % boats.length]
-        spawn(b.x + (Math.random() - 0.5) * 18, (b._y || poolY(b.x)) - 24, (Math.random() - 0.5) * 30, 220)
+        simulation.addParticle(
+          b.x + (Math.random() - 0.5) * 18,
+          (b._y || poolY(b.x)) - 28,
+          (Math.random() - 0.5) * 24,
+          180,
+        )
       }
+    },
+    addVolume: (n) => {
+      for (let k = 0; k < n; k++) mergeAt(w * 0.5, 40)
     },
   }
 
@@ -994,7 +1199,7 @@ export function mount(stage, { still, peek } = {}) {
     wrap.removeEventListener('gesturechange', blockGesture)
     wrap.removeEventListener('gestureend', blockGesture)
     try {
-      ambient?.stop?.()
+      flowSrc?.stop?.()
     } catch {
       /* */
     }

@@ -148,6 +148,10 @@ function silentWavUri() {
 
 function startSilentMedia() {
   if (typeof document === 'undefined' || silent()) return
+  // Playwright Linux WebKit process-crashes on a real <audio> element plus
+  // multiple canvases. Automated runs already inject FakeAC; skip the media
+  // keepalive there. Real iOS Safari is never navigator.webdriver.
+  if (typeof navigator !== 'undefined' && navigator.webdriver) return
   if (!media) {
     media = document.createElement('audio')
     media.setAttribute('playsinline', '')

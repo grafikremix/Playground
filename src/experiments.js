@@ -185,6 +185,12 @@ export const experiments = [
         author: 'Maximilian Feix',
         href: 'https://github.com/maximilianfeix/plinkfx',
       },
+      {
+        label: 'Fluid',
+        name: 'SPHjs',
+        author: 'asadm',
+        href: 'https://github.com/asadm/SPHjs',
+      },
     ],
   },
 ]
