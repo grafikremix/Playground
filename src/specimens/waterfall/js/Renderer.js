@@ -138,7 +138,7 @@ class WebGLFluidRenderer {
     this.logicalHeight = 1;
     this.pixelRatio = 1;
     this.pointDiameter = 40;
-    this.threshold = 160 / 255;
+    this.threshold = 108 / 255;
     this.cameraY = 0;
     this.positions = new Float32Array(maxParticles * 2);
     this.maximumPointSize = gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE)[1];

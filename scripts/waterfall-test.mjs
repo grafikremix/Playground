@@ -178,18 +178,44 @@ await page.waitForTimeout(400)
 
 report.afterStart = await page.evaluate(() => {
   const hud = document.querySelector('.wf-hud')
-  const label = document.querySelector('.wf-gauge-k')
+  const slider = document.querySelector('.wf-slider')
+  const label = document.querySelector('.wf-slider-k')
   const lr = label.getBoundingClientRect()
   const hr = hud.getBoundingClientRect()
-  const gauge = [...document.querySelectorAll('[data-rate]')].map((b) => b.textContent.trim())
+  const sr = slider.getBoundingClientRect()
+  const gauge = [...document.querySelectorAll('.wf-slider-labels span')].map((b) => b.textContent.trim())
   const reset = document.querySelector('.wf-reset')
+  const undo = document.querySelector('.wf-undo')
+  const bar = document.querySelector('.wf-bar')
+  const controls = [slider, undo, reset].map((el) => {
+    const r = el.getBoundingClientRect()
+    return { t: r.top, b: r.bottom, l: r.left, r: r.right }
+  })
   return {
     gauge,
     reset: reset?.textContent.trim(),
+    undo: undo?.textContent.trim(),
     resetBorder: getComputedStyle(reset).borderTopColor,
-    gaugeBorder: getComputedStyle(document.querySelector('[data-rate]')).borderTopColor,
+    gaugeBorder: getComputedStyle(slider).borderTopColor,
+    sliderPe: getComputedStyle(slider).pointerEvents,
+    hudPe: getComputedStyle(hud).pointerEvents,
+    barCount: bar?.children.length || 0,
     pressureLabel: label?.textContent.trim(),
-    hudBox: { l: lr.left, r: lr.right, t: lr.top, b: lr.bottom, vw: innerWidth, vh: innerHeight, hudL: hr.left, hudR: hr.right },
+    hudBox: {
+      l: lr.left,
+      r: lr.right,
+      t: lr.top,
+      b: lr.bottom,
+      vw: innerWidth,
+      vh: innerHeight,
+      hudL: hr.left,
+      hudR: hr.right,
+      hudT: hr.top,
+      hudB: hr.bottom,
+      sliderL: sr.left,
+      sliderR: sr.right,
+    },
+    oneBar: controls.every((c) => c.t >= hr.top - 1 && c.b <= hr.bottom + 1 && c.l >= hr.left - 1 && c.r <= hr.right + 1),
     stats: window.__waterfall.stats(),
   }
 })
@@ -279,13 +305,76 @@ report.arrow = await page.evaluate((before) => {
   return { before, after: s.camY, max: s.maxCam, clamped: clamped.camY }
 }, beforeArrow)
 
-await page.click('[data-rate="slow"]')
-await page.waitForTimeout(40)
+const snapAt = async (t) => {
+  const box = await page.locator('.wf-slider-track').boundingBox()
+  await page.touchscreen.tap(box.x + box.width * t, box.y + box.height / 2)
+  await page.waitForTimeout(40)
+}
+await snapAt(0.04)
 report.slow = await page.evaluate(() => window.__waterfall.stats().pressure)
-await page.click('[data-rate="fast"]')
-await page.waitForTimeout(40)
+await snapAt(0.96)
 report.fast = await page.evaluate(() => window.__waterfall.stats().pressure)
-await page.click('[data-rate="medium"]')
+await snapAt(0.5)
+report.medTap = await page.evaluate(() => window.__waterfall.stats().pressure)
+
+report.sliderDrag = await page.evaluate(() => {
+  const track = document.querySelector('.wf-slider-track')
+  const r = track.getBoundingClientRect()
+  const fire = (type, x) => {
+    track.dispatchEvent(
+      new PointerEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 21,
+        pointerType: 'touch',
+        clientX: x,
+        clientY: r.top + r.height / 2,
+        buttons: type === 'pointerup' ? 0 : 1,
+      }),
+    )
+  }
+  fire('pointerdown', r.left + r.width * 0.08)
+  fire('pointermove', r.left + r.width * 0.08)
+  fire('pointerup', r.left + r.width * 0.08)
+  const a = window.__waterfall.stats().pressure
+  fire('pointerdown', r.left + r.width * 0.92)
+  fire('pointermove', r.left + r.width * 0.5)
+  fire('pointermove', r.left + r.width * 0.92)
+  fire('pointerup', r.left + r.width * 0.92)
+  const b = window.__waterfall.stats().pressure
+  return { fromLeft: a, afterDrag: b }
+})
+
+report.sliderKeys = await page.evaluate(() => {
+  const el = document.querySelector('.wf-slider')
+  el.focus()
+  const fire = (key) => el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }))
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true, cancelable: true }))
+  const home = window.__waterfall.stats().pressure
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true, cancelable: true }))
+  const end = window.__waterfall.stats().pressure
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }))
+  const left = window.__waterfall.stats().pressure
+  el.blur()
+  return { home, end, left, focused: document.activeElement === el }
+})
+await page.evaluate(() => window.__waterfall.setPressure('medium'))
+
+report.basin = await page.evaluate(() => {
+  window.__waterfall.scrollTo(window.__waterfall.stats().maxCam)
+  const s = window.__waterfall.stats()
+  const hud = document.querySelector('.wf-hud').getBoundingClientRect()
+  return {
+    camY: s.camY,
+    maxCam: s.maxCam,
+    basinScreenY: s.basinScreenY,
+    hudTop: hud.top,
+    viewH: s.viewH,
+    hudH: s.hudH,
+    above: s.basinScreenY <= hud.top + 1.5,
+  }
+})
+await page.evaluate(() => window.__waterfall.scrollTo(0))
 
 await page.evaluate(() => {
   window.__waterfall.scrollTo(window.__waterfall.stats().maxCam)
@@ -453,9 +542,12 @@ check(report.hud.prompt === 'Prompt', 'prompt')
 Object.entries(report.hud.borders).forEach(([k, b]) => {
   check(b && b.w === '1px' && hair(b.c), `hud border ${k}`, b)
 })
-check(report.afterStart.gauge.join() === 'Slow,Medium,Fast', 'gauge labels', report.afterStart.gauge)
-check(report.afterStart.reset === 'Reset', 'reset sentence case', report.afterStart.reset)
+check(report.afterStart.gauge.join() === 'Slow,Med,Fast', 'gauge labels', report.afterStart.gauge)
+check(report.afterStart.reset === 'Reset' && report.afterStart.undo === 'Undo', 'reset sentence case', report.afterStart)
 check(hair(report.afterStart.resetBorder) && hair(report.afterStart.gaugeBorder), 'hud hairline', report.afterStart)
+check(report.afterStart.pressureLabel === 'Pressure', 'pressure label', report.afterStart.pressureLabel)
+check(report.afterStart.barCount === 3 && report.afterStart.oneBar, 'one bottom bar', report.afterStart)
+check(report.afterStart.hudPe === 'none' && report.afterStart.sliderPe === 'auto', 'hud hit target', report.afterStart)
 check(report.drawn.strokes >= 1, 'touch draw', report.drawn)
 check(report.split.splitLeft >= 4 && report.split.splitRight >= 4, 'flat split', { l: report.split.splitLeft, r: report.split.splitRight, n: report.split.particles })
 check(report.bowlFill.bowl >= 6, 'bowl fills', report.bowlFill.bowl)
@@ -464,7 +556,10 @@ check(report.slope.particles > 8 && report.slope.splitRight >= 3, 'slope slide',
 check(report.pinchScroll.camY > 20, 'two-finger scroll', report.pinchScroll.camY)
 check(report.arrow.after > report.arrow.before, 'arrow keys', report.arrow)
 check(report.arrow.clamped === report.arrow.max, 'scroll clamp', report.arrow)
-check(report.slow === 'slow' && report.fast === 'fast', 'pressure gauge', { slow: report.slow, fast: report.fast })
+check(report.slow === 'slow' && report.fast === 'fast' && report.medTap === 'medium', 'slider tap snap', { slow: report.slow, fast: report.fast, med: report.medTap })
+check(report.sliderDrag.fromLeft === 'slow' && report.sliderDrag.afterDrag === 'fast', 'slider drag snap', report.sliderDrag)
+check(report.sliderKeys.home === 'slow' && report.sliderKeys.end === 'fast' && report.sliderKeys.left === 'medium', 'slider keys', report.sliderKeys)
+check(report.basin.above && report.basin.basinScreenY > 40, 'basin above bar', report.basin)
 check(report.boats.some((b) => Math.abs(b.vx) > 0.2 || Math.abs(b.bob) > 0.2 || Math.abs(b.a) > 0.01), 'boats react', report.boats)
 check(report.reset.strokes === 0 && report.reset.camY === 0, 'reset clears', report.reset)
 check(report.resetFlow > 0, 'reset restarts flow', report.resetFlow)
@@ -485,5 +580,5 @@ check(report.prompt.meta[0] === 'Idea 11' && report.prompt.meta.some((m) => m.st
 check(!report.still.hud && !report.still.score && report.still.strokes >= 1, 'still pose', report.still)
 check(report.split.fps >= 20, 'fps', report.split.fps)
 
-console.log(JSON.stringify({ ok: fails.length === 0, fails, report: { home: report.home, afterStart: { gauge: report.afterStart.gauge, reset: report.afterStart.reset, particles: report.afterStart.stats.particles, solver: report.afterStart.stats.solver }, drawn: { strokes: report.drawn.strokes }, split: { l: report.split.splitLeft, r: report.split.splitRight, n: report.split.particles, fps: report.split.fps, crossings: report.split.crossings, trigPerSec: report.split.trigPerSec, solver: report.split.solver }, bowlFill: report.bowlFill.bowl, bowlOver: { n: report.bowlOver.particles, bowl: report.bowlOver.bowl }, slope: report.slope, pinchScroll: report.pinchScroll.camY, arrow: report.arrow, slow: report.slow, fast: report.fast, boats: report.boats, reset: report.reset, resetFlow: report.resetFlow, crossings: report.crossings?.crossings, rates: report.rates, cycles: report.cycles, prompt: { scroll: report.prompt.scroll, footer: report.prompt.footer, credit: report.prompt.credit, href: report.prompt.href, hrefs: report.prompt.hrefs, meta: report.prompt.meta }, still: report.still, errors } }, null, 2))
+console.log(JSON.stringify({ ok: fails.length === 0, fails, report: { home: report.home, afterStart: { gauge: report.afterStart.gauge, reset: report.afterStart.reset, undo: report.afterStart.undo, oneBar: report.afterStart.oneBar, particles: report.afterStart.stats.particles, solver: report.afterStart.stats.solver, hudH: report.afterStart.stats.hudH }, drawn: { strokes: report.drawn.strokes }, split: { l: report.split.splitLeft, r: report.split.splitRight, n: report.split.particles, fps: report.split.fps, crossings: report.split.crossings, trigPerSec: report.split.trigPerSec, solver: report.split.solver }, bowlFill: report.bowlFill.bowl, bowlOver: { n: report.bowlOver.particles, bowl: report.bowlOver.bowl }, slope: report.slope, pinchScroll: report.pinchScroll.camY, arrow: report.arrow, slow: report.slow, fast: report.fast, medTap: report.medTap, sliderDrag: report.sliderDrag, sliderKeys: report.sliderKeys, basin: report.basin, boats: report.boats, reset: report.reset, resetFlow: report.resetFlow, crossings: report.crossings?.crossings, rates: report.rates, cycles: report.cycles, prompt: { scroll: report.prompt.scroll, footer: report.prompt.footer, credit: report.prompt.credit, href: report.prompt.href, hrefs: report.prompt.hrefs, meta: report.prompt.meta }, still: report.still, errors } }, null, 2))
 if (fails.length) process.exit(1)

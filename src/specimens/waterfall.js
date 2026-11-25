@@ -32,6 +32,8 @@ const PRESS = {
   fast: { rate: 120, speed: 155, spread: 14, ambient: 0.16 },
 }
 const TRIG_MAX = 4
+const RATES = ['slow', 'medium', 'fast']
+const RATE_LABEL = { slow: 'Slow', medium: 'Med', fast: 'Fast' }
 
 function clamp(n, a, b) {
   return Math.max(a, Math.min(b, n))
@@ -132,17 +134,30 @@ export function mount(stage, { still, peek } = {}) {
   const hud = document.createElement('div')
   hud.className = 'wf-hud'
   hud.innerHTML = `
-    <p class="wf-gauge-k">Pressure</p>
-    <div class="wf-row">
-      <div class="wf-gauge" role="radiogroup" aria-label="Pressure">
-        <button type="button" data-rate="slow" aria-pressed="false">Slow</button>
-        <button type="button" data-rate="medium" aria-pressed="true" class="is-on">Medium</button>
-        <button type="button" data-rate="fast" aria-pressed="false">Fast</button>
+    <div class="wf-bar">
+      <div
+        class="wf-slider"
+        role="slider"
+        tabindex="0"
+        aria-label="Pressure"
+        aria-valuemin="0"
+        aria-valuemax="2"
+        aria-valuenow="1"
+        aria-valuetext="Med"
+      >
+        <p class="wf-slider-k">Pressure</p>
+        <div class="wf-slider-track">
+          <span class="wf-tick" data-notch="0"></span>
+          <span class="wf-tick" data-notch="1"></span>
+          <span class="wf-tick" data-notch="2"></span>
+          <span class="wf-thumb"></span>
+        </div>
+        <div class="wf-slider-labels" aria-hidden="true">
+          <span>Slow</span><span>Med</span><span>Fast</span>
+        </div>
       </div>
-      <div class="wf-actions">
-        <button type="button" class="wf-undo" aria-label="Undo">Undo</button>
-        <button type="button" class="wf-reset" aria-label="Reset">Reset</button>
-      </div>
+      <button type="button" class="wf-undo" aria-label="Undo">Undo</button>
+      <button type="button" class="wf-reset" aria-label="Reset">Reset</button>
     </div>`
 
   if (preview) wrap.append(bg, fluid, overlay)
@@ -303,8 +318,13 @@ function run({
     return isLive()
   }
 
+  function hudInset() {
+    if (preview || !hud?.isConnected) return 0
+    return Math.ceil(hud.getBoundingClientRect().height)
+  }
+
   function maxCam() {
-    return Math.max(0, worldH - h)
+    return Math.max(0, worldH - h + hudInset())
   }
 
   function setCam(y) {
@@ -809,8 +829,8 @@ function run({
     size2d(overlay, octx, w, h, dpr)
     simulation.resize(w, worldH, dpr)
     simulation.setBoundaryPadding?.(diameter * 0.45)
-    if (simulation.setView) simulation.setView(w, h, dpr, camY)
-    else renderer.resize(w, h, dpr)
+    if (renderer !== simulation) renderer.resize(w, h, dpr)
+    simulation.setView?.(w, h, dpr, camY)
     renderer.setParticleDiameter?.(diameter)
     renderer.setCamera?.(camY)
     setCam(camY)
@@ -836,7 +856,7 @@ function run({
   }
 
   function hudTarget(t) {
-    return !!(t && t.closest && t.closest('button, .wf-undo, .wf-reset, [data-rate]'))
+    return !!(t && t.closest && t.closest('button, .wf-slider, .wf-undo, .wf-reset, .wf-bar'))
   }
 
   function pointFrom(e) {
@@ -971,30 +991,82 @@ function run({
   wrap.addEventListener('gestureend', blockGesture)
   wrap.addEventListener('contextmenu', (e) => e.preventDefault())
 
+  const slider = hud.querySelector('.wf-slider')
+  const thumb = hud.querySelector('.wf-thumb')
+  let sliding = false
+
+  function rateIndex(name) {
+    const i = RATES.indexOf(name)
+    return i < 0 ? 1 : i
+  }
+
   function setPressure(next) {
     if (!PRESS[next]) return
     pressure = next
     spawned = 0
     spawnT0 = performance.now()
-    hud.querySelectorAll('[data-rate]').forEach((btn) => {
-      const on = btn.getAttribute('data-rate') === pressure
-      btn.classList.toggle('is-on', on)
-      btn.setAttribute('aria-pressed', String(on))
-    })
+    const i = rateIndex(pressure)
+    if (slider) {
+      slider.setAttribute('aria-valuenow', String(i))
+      slider.setAttribute('aria-valuetext', RATE_LABEL[pressure])
+    }
+    if (thumb) thumb.style.left = `${(i / 2) * 100}%`
     tickAmbient()
+  }
+
+  function snapPressureFromX(clientX) {
+    const track = hud.querySelector('.wf-slider-track')
+    if (!track) return
+    const r = track.getBoundingClientRect()
+    const t = r.width <= 0 ? 0.5 : (clientX - r.left) / r.width
+    setPressure(RATES[Math.round(clamp(t, 0, 1) * 2)])
   }
 
   hud.addEventListener('pointerdown', (e) => {
     if (!hudTarget(e.target)) return
     e.stopPropagation()
-  })
-  hud.addEventListener('click', (e) => {
-    const rate = e.target.closest('[data-rate]')?.getAttribute('data-rate')
-    if (rate) {
+    if (e.target.closest('.wf-slider')) {
+      sliding = true
+      try {
+        slider.setPointerCapture?.(e.pointerId)
+      } catch {
+        /* */
+      }
       unlock()
-      setPressure(rate)
-      return
+      snapPressureFromX(e.clientX)
     }
+  })
+  hud.addEventListener('pointermove', (e) => {
+    if (!sliding) return
+    e.stopPropagation()
+    snapPressureFromX(e.clientX)
+  })
+  const endSlide = (e) => {
+    if (!sliding) return
+    e.stopPropagation()
+    sliding = false
+  }
+  hud.addEventListener('pointerup', endSlide)
+  hud.addEventListener('pointercancel', endSlide)
+  const onHudTouch = (e) => {
+    if (!hudTarget(e.target) && !sliding) return
+    e.stopPropagation()
+    e.preventDefault()
+    const t = e.changedTouches[0] || e.touches[0]
+    if (t && e.target.closest?.('.wf-slider')) {
+      if (e.type === 'touchstart') {
+        sliding = true
+        unlock()
+      }
+      if (sliding) snapPressureFromX(t.clientX)
+    }
+    if (e.type === 'touchend' || e.type === 'touchcancel') sliding = false
+  }
+  hud.addEventListener('touchstart', onHudTouch, { passive: false })
+  hud.addEventListener('touchmove', onHudTouch, { passive: false })
+  hud.addEventListener('touchend', onHudTouch, { passive: false })
+  hud.addEventListener('touchcancel', onHudTouch, { passive: false })
+  hud.addEventListener('click', (e) => {
     if (e.target.closest('.wf-reset')) {
       unlock()
       resetWorld()
@@ -1009,6 +1081,28 @@ function run({
 
   function onKey(e) {
     if (!live()) return
+    if (document.activeElement === slider) {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+        e.preventDefault()
+        setPressure(RATES[Math.min(2, rateIndex(pressure) + 1)])
+        return
+      }
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+        e.preventDefault()
+        setPressure(RATES[Math.max(0, rateIndex(pressure) - 1)])
+        return
+      }
+      if (e.key === 'Home') {
+        e.preventDefault()
+        setPressure('slow')
+        return
+      }
+      if (e.key === 'End') {
+        e.preventDefault()
+        setPressure('fast')
+        return
+      }
+    }
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       setCam(camY + 36)
@@ -1018,6 +1112,7 @@ function run({
     }
   }
   window.addEventListener('keydown', onKey)
+  setPressure(pressure)
   const stopWatch = watchFrame(frame, layout)
 
   function emitMeasured() {
@@ -1042,6 +1137,8 @@ function run({
       pressure,
       camY,
       maxCam: maxCam(),
+      hudH: hudInset(),
+      basinScreenY: worldH - camY,
       worldH,
       viewH: h,
       viewW: w,
@@ -1125,6 +1222,8 @@ function run({
   }
 
   function onPlay() {
+    layout()
+    setCam(camY)
     if (!raf) {
       last = performance.now()
       raf = requestAnimationFrame(loop)
@@ -1144,7 +1243,7 @@ function run({
   resetBoats()
   if (preview) {
     seedDemo()
-    for (let k = 0; k < 36; k++) {
+    for (let k = 0; k < 96; k++) {
       emit(DT)
       simulation.step(DT)
       drainPool()

@@ -49,6 +49,7 @@ const peak = await peakRms(page, 1800)
 const snap = await page.evaluate(() => window.__waterfall.stats())
 
 await browser.close()
-const ok = peak >= MIN_RMS && errors.length === 0
-console.log(JSON.stringify({ ok, peak, minRms: MIN_RMS, rmsPeak: snap.rmsPeak, ctxState: snap.ctxState, errors }, null, 2))
+const trigOk = (snap.trigPerSec || 0) <= 4
+const ok = peak >= MIN_RMS && trigOk && errors.length === 0
+console.log(JSON.stringify({ ok, peak, minRms: MIN_RMS, rmsPeak: snap.rmsPeak, trigPerSec: snap.trigPerSec, ctxState: snap.ctxState, solver: snap.solver, fps: snap.fps, errors }, null, 2))
 if (!ok) process.exit(1)

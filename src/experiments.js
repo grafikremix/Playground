@@ -176,7 +176,7 @@ export const experiments = [
     date: '2026-11-24',
     hint: '',
     full: true,
-    stillWait: 900,
+    stillWait: 1400,
     crop: { x: 0.52, y: 0.22, z: 1.38 },
     credits: [
       {
