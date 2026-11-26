@@ -897,6 +897,7 @@ function run({
     renderer.setCamera?.(camY)
     setCam(camY)
     simulation.setFloor?.(worldH - poolBase)
+    if (hit) hit.style.bottom = preview ? '0px' : `${hudInset()}px`
     if (!boats.length) resetBoats()
     else for (const b of boats) b.x = clamp(b.x, 28, w - 28)
   }
@@ -918,7 +919,25 @@ function run({
   }
 
   function hudTarget(t) {
-    return !!(t && t.closest && t.closest('button, .wf-slider, .wf-undo, .wf-reset, .wf-bar'))
+    return !!(t && t.closest && t.closest('.wf-hud, button, .wf-slider, .wf-undo, .wf-reset, .wf-bar'))
+  }
+
+  function pointInHud(clientX, clientY) {
+    if (preview || !hud?.isConnected) return false
+    const r = hud.getBoundingClientRect()
+    return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom
+  }
+
+  function eventInHud(e) {
+    if (hudTarget(e.target)) return true
+    if (Number.isFinite(e.clientX) && Number.isFinite(e.clientY) && pointInHud(e.clientX, e.clientY)) return true
+    try {
+      const x = Number.isFinite(e.clientX) ? e.clientX : 0
+      const y = Number.isFinite(e.clientY) ? e.clientY : 0
+      return hudTarget(document.elementFromPoint(x, y))
+    } catch {
+      return false
+    }
   }
 
   function pointFrom(e) {
@@ -943,7 +962,7 @@ function run({
   }
 
   function onDown(e) {
-    if (hudTarget(e.target)) return
+    if (eventInHud(e)) return
     if (e.pointerType === 'mouse' && e.button !== 0) return
     if (!live() && !preview) return
     e.preventDefault?.()
@@ -1008,14 +1027,27 @@ function run({
     return (t.identifier ?? 0) + 1000
   }
 
+  function touchInHud(t) {
+    if (pointInHud(t.clientX, t.clientY)) return true
+    try {
+      return hudTarget(document.elementFromPoint(t.clientX, t.clientY))
+    } catch {
+      return false
+    }
+  }
+
   function preventPageScroll(e) {
     if (hudTarget(e.target)) return
+    const touches = e.changedTouches || []
+    if (touches.length && [...touches].every(touchInHud)) return
     e.preventDefault()
   }
 
   function onTouchStart(e) {
+    const rest = [...e.changedTouches].filter((t) => !touchInHud(t))
+    if (!rest.length) return
     preventPageScroll(e)
-    for (const t of e.changedTouches) {
+    for (const t of rest) {
       onDown({
         pointerId: touchId(t),
         pointerType: 'touch',
@@ -1029,8 +1061,10 @@ function run({
   }
 
   function onTouchMove(e) {
+    const rest = [...e.changedTouches].filter((t) => !touchInHud(t) || pointers.has(touchId(t)))
+    if (!rest.length) return
     preventPageScroll(e)
-    for (const t of e.changedTouches) {
+    for (const t of rest) {
       onMove({
         pointerId: touchId(t),
         pointerType: 'touch',
@@ -1042,8 +1076,10 @@ function run({
   }
 
   function onTouchEnd(e) {
+    const rest = [...e.changedTouches].filter((t) => pointers.has(touchId(t)) || !touchInHud(t))
+    if (!rest.length) return
     preventPageScroll(e)
-    for (const t of e.changedTouches) onUp({ pointerId: touchId(t) })
+    for (const t of rest) onUp({ pointerId: touchId(t) })
   }
 
   function onPointerFromMouse(handler) {
@@ -1131,14 +1167,19 @@ function run({
   hud.addEventListener('pointerup', endSlide)
   hud.addEventListener('pointercancel', endSlide)
   const onHudTouch = (e) => {
-    if (!hudTarget(e.target) && !sliding) return
+    const onSlider = !!(e.target.closest?.('.wf-slider') || sliding)
+    if (!onSlider) return
     e.stopPropagation()
     e.preventDefault()
     const t = e.changedTouches[0] || e.touches[0]
-    if (t && e.target.closest?.('.wf-slider')) {
+    if (t) {
       if (e.type === 'touchstart') {
         sliding = true
-        unlock()
+        try {
+          unlock()
+        } catch {
+          /* */
+        }
       }
       if (sliding) snapPressureFromX(t.clientX)
     }
@@ -1148,18 +1189,41 @@ function run({
   hud.addEventListener('touchmove', onHudTouch, { passive: false })
   hud.addEventListener('touchend', onHudTouch, { passive: false })
   hud.addEventListener('touchcancel', onHudTouch, { passive: false })
-  hud.addEventListener('click', (e) => {
-    if (e.target.closest('.wf-reset')) {
-      unlock()
-      resetWorld()
-      return
+
+  function undoStroke() {
+    strokes.pop()
+    rebuildSegs()
+  }
+
+  function bindHudButton(el, action) {
+    if (!el) return
+    let last = 0
+    const fire = (e) => {
+      e.preventDefault?.()
+      e.stopPropagation?.()
+      const now = performance.now()
+      if (now - last < 350) return
+      last = now
+      try {
+        unlock()
+      } catch {
+        /* */
+      }
+      action()
     }
-    if (e.target.closest('.wf-undo')) {
-      unlock()
-      strokes.pop()
-      rebuildSegs()
-    }
-  })
+    el.addEventListener('pointerup', (e) => {
+      if (e.pointerType === 'touch') return
+      if (e.button != null && e.button !== 0) return
+      fire(e)
+    })
+    el.addEventListener('touchend', fire, { passive: false })
+    el.addEventListener('click', fire)
+    el.addEventListener('pointerdown', (e) => e.stopPropagation())
+    el.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true })
+  }
+
+  bindHudButton(hud.querySelector('.wf-undo'), undoStroke)
+  bindHudButton(hud.querySelector('.wf-reset'), resetWorld)
 
   function onKey(e) {
     if (!live()) return

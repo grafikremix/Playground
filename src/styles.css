@@ -1505,7 +1505,10 @@ body.is-peek .sb-wrap {
 
 .wf-hit {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  left: 0;
+  bottom: 88px;
   z-index: 10;
   pointer-events: auto;
   touch-action: none;
@@ -1518,12 +1521,15 @@ body.is-peek .sb-wrap {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 20;
+  z-index: 30;
   display: flex;
   align-items: stretch;
   justify-content: flex-end;
   padding: 8px max(10px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
   pointer-events: none;
+  isolation: isolate;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
   background: linear-gradient(to top, rgba(2, 5, 12, 0.78), rgba(2, 5, 12, 0));
 }
 
@@ -1634,6 +1640,8 @@ body.is-peek .sb-wrap {
 
 .wf-hud button {
   appearance: none;
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1651,9 +1659,14 @@ body.is-peek .sb-wrap {
   text-transform: none;
   cursor: pointer;
   pointer-events: auto;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
   border-radius: 2px;
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
 }
 
 .wf-reset {
