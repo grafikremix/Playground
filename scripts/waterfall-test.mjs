@@ -137,13 +137,13 @@ async function launchPage() {
 async function pointers(page, events) {
   for (const ev of events) {
     await page.evaluate((e) => {
-      const el = document.querySelector('.wf-wrap canvas') || document.querySelector('canvas')
+      const el = document.querySelector('.wf-hit') || document.querySelector('.wf-wrap')
       el.dispatchEvent(
         new PointerEvent(e.type, {
           bubbles: true,
           cancelable: true,
           pointerId: e.id,
-          pointerType: 'touch',
+          pointerType: 'mouse',
           clientX: e.x,
           clientY: e.y,
           buttons: e.type === 'pointerup' ? 0 : 1,
@@ -161,7 +161,7 @@ page.on('console', (msg) => {
   if (msg.type() === 'error') errors.push(msg.text())
 })
 
-await page.goto(`${BASE}/specimens/waterfall.html`, { waitUntil: 'domcontentloaded', timeout: 120000 })
+await page.goto(`${BASE}/specimens/waterfall.html?wfgl=0`, { waitUntil: 'domcontentloaded', timeout: 120000 })
 await page.waitForSelector('.start')
 report.hud = await page.evaluate(() => ({
   back: document.querySelector('.back')?.textContent.trim(),
@@ -428,7 +428,7 @@ report.rates = await page.evaluate(() => {
 })
 
 report.cycles = await page.evaluate(async () => {
-  const wrap = document.querySelector('.wf-wrap')
+  const wrap = document.querySelector('.wf-hit') || document.querySelector('.wf-wrap')
   const r = wrap.getBoundingClientRect()
   const fire = (type, id, x, y) => {
     wrap.dispatchEvent(
@@ -436,7 +436,7 @@ report.cycles = await page.evaluate(async () => {
         bubbles: true,
         cancelable: true,
         pointerId: id,
-        pointerType: 'touch',
+        pointerType: 'mouse',
         clientX: x,
         clientY: y,
         buttons: type === 'pointerup' ? 0 : 1,

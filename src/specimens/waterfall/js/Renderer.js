@@ -141,7 +141,14 @@ class WebGLFluidRenderer {
     this.threshold = 108 / 255;
     this.cameraY = 0;
     this.positions = new Float32Array(maxParticles * 2);
-    this.maximumPointSize = gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE)[1];
+    let pointRange = null;
+    try {
+      pointRange = gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE);
+    } catch {
+      pointRange = null;
+    }
+    this.maximumPointSize =
+      pointRange && pointRange[1] > 1 ? pointRange[1] : 64;
 
     this.particleProgram = createProgram(
       gl,
@@ -280,6 +287,8 @@ class WebGLFluidRenderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    // RGBA8 is core WebGL2. Do not use RGBA16F/RGBA32F — Safari often lacks
+    // EXT_color_buffer_float / EXT_color_buffer_half_float for float RTs.
     gl.texImage2D(
       gl.TEXTURE_2D,
       0,
@@ -374,6 +383,33 @@ class WebGLFluidRenderer {
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     gl.bindVertexArray(null);
   }
+
+  // Playground: prove a particle actually lands in the backbuffer.
+  validate() {
+    const gl = this.gl;
+    this.resize(64, 64, 1);
+    this.cameraY = 0;
+    this.pointDiameter = 40;
+    this.render({
+      count: 1,
+      x: new Float32Array([32]),
+      y: new Float32Array([32]),
+    });
+    const err = gl.getError();
+    if (err) {
+      throw new Error(`WebGL2 error ${err}`);
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.pixelStorei(gl.PACK_ALIGNMENT, 1);
+    const pixels = new Uint8Array(64 * 64 * 4);
+    gl.readPixels(0, 0, 64, 64, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    for (let i = 0; i < pixels.length; i += 4) {
+      if (pixels[i + 3] > 8) {
+        return true;
+      }
+    }
+    throw new Error("WebGL2 produced an empty frame");
+  }
 }
 
 class CanvasFluidRenderer {
@@ -447,33 +483,64 @@ class CanvasFluidRenderer {
       );
     }
   }
+
+  validate() {
+    this.resize(64, 64, 1);
+    this.cameraY = 0;
+    this.pointDiameter = 40;
+    this.render({
+      count: 1,
+      x: new Float32Array([32]),
+      y: new Float32Array([32]),
+    });
+    const sample = this.context.getImageData(16, 16, 32, 32).data;
+    for (let i = 0; i < sample.length; i += 4) {
+      if (sample[i + 3] > 8) {
+        return true;
+      }
+    }
+    throw new Error("Canvas 2D produced an empty frame");
+  }
 }
 
-export function createRenderer(canvas, maxParticles) {
-  const glOptions = {
-    alpha: true,
-    antialias: false,
-    depth: false,
-    stencil: false,
-    premultipliedAlpha: true,
-    preserveDrawingBuffer: false,
-  };
-  // Playwright's Linux WebKit process-crashes on WebGL2; real iOS Safari does not.
-  const automated = typeof navigator !== "undefined" && navigator.webdriver;
-  if (!automated) {
+const GL_OPTIONS = {
+  alpha: true,
+  antialias: false,
+  depth: false,
+  stencil: false,
+  premultipliedAlpha: true,
+  preserveDrawingBuffer: true,
+  failIfMajorPerformanceCaveat: false,
+};
+
+export function createRenderer(canvas, maxParticles, { force2d = false } = {}) {
+  if (!force2d) {
     try {
-      const gl = canvas.getContext("webgl2", glOptions);
+      const gl = canvas.getContext("webgl2", GL_OPTIONS);
       if (gl) {
-        return new WebGLFluidRenderer(canvas, gl, maxParticles);
+        const renderer = new WebGLFluidRenderer(canvas, gl, maxParticles);
+        renderer.validate();
+        return renderer;
       }
-    } catch {
-      /* fall through to Canvas 2D */
+    } catch (err) {
+      console.warn("WebGL2 fluid renderer unavailable.", err);
     }
   }
 
-  const context = canvas.getContext("2d", { alpha: true });
-  if (!context) {
-    throw new Error("This browser does not provide WebGL2 or Canvas 2D.");
+  try {
+    const context = canvas.getContext("2d", { alpha: true });
+    if (!context) {
+      return null;
+    }
+    const renderer = new CanvasFluidRenderer(canvas, context);
+    try {
+      renderer.validate();
+    } catch (err) {
+      console.warn("Canvas 2D test frame was empty; keeping the renderer.", err);
+    }
+    return renderer;
+  } catch (err) {
+    console.warn("Canvas 2D fluid renderer unavailable.", err);
+    return null;
   }
-  return new CanvasFluidRenderer(canvas, context);
 }

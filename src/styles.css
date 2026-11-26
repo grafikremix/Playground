@@ -968,6 +968,11 @@ html.is-js:not(.is-intro-done) .tile:not(.is-in) {
   text-shadow: 0 0 8px rgba(183, 236, 255, 0.22);
 }
 
+html:has(body.is-full) {
+  overflow: hidden;
+  touch-action: none;
+}
+
 body.is-full {
   overflow: hidden;
   touch-action: none;
@@ -991,7 +996,8 @@ body.is-full .prompt-scroll,
 body.is-full .sb-wrap,
 body.is-full .sb-dock,
 body.is-full .wf-hud button,
-body.is-full .wf-slider {
+body.is-full .wf-slider,
+body.is-full .wf-hit {
   pointer-events: auto;
 }
 
@@ -1066,6 +1072,22 @@ body.is-full .stage-frame {
 body.is-full .stage-frame canvas {
   position: relative;
   z-index: 0;
+}
+
+body.is-full .wf-wrap canvas {
+  position: absolute !important;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none !important;
+  touch-action: none;
+}
+
+body.is-full .wf-fluid {
+  z-index: 1 !important;
+}
+
+body.is-full .wf-overlay {
+  z-index: 2 !important;
 }
 
 body.is-full .chrome-end,
@@ -1479,6 +1501,16 @@ body.is-peek .sb-wrap {
 .sb-head-link:focus-visible {
   outline: 1px solid var(--p);
   outline-offset: 2px;
+}
+
+.wf-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: auto;
+  touch-action: none;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
 }
 
 .wf-hud {

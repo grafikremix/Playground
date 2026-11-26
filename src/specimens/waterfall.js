@@ -34,6 +34,39 @@ const PRESS = {
 const TRIG_MAX = 4
 const RATES = ['slow', 'medium', 'fast']
 const RATE_LABEL = { slow: 'Slow', medium: 'Med', fast: 'Fast' }
+const CANVAS_CSS =
+  'position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;pointer-events:none;'
+
+function wantCanvasOnly() {
+  try {
+    return /(?:^|[?&])wfgl=0(?:&|$)/.test(location.search || '')
+  } catch {
+    return false
+  }
+}
+
+function withTimeout(promise, ms, label) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out`)), ms)
+    Promise.resolve(promise).then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      (err) => {
+        clearTimeout(timer)
+        reject(err)
+      },
+    )
+  })
+}
+
+function freshFluidCanvas() {
+  const canvas = document.createElement('canvas')
+  canvas.className = 'wf-fluid'
+  canvas.style.cssText = `${CANVAS_CSS}z-index:1;`
+  return canvas
+}
 
 function clamp(n, a, b) {
   return Math.max(a, Math.min(b, n))
@@ -120,16 +153,15 @@ export function mount(stage, { still, peek } = {}) {
 
   const bg = document.createElement('canvas')
   const overlay = document.createElement('canvas')
-  let fluid = document.createElement('canvas')
-  fluid.className = 'wf-fluid'
+  let fluid = freshFluidCanvas()
   bg.className = 'wf-bg'
   overlay.className = 'wf-overlay'
-  const canvasCss =
-    'position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;pointer-events:none;'
-  bg.style.cssText = canvasCss
-  fluid.style.cssText = `${canvasCss}z-index:1;`
-  overlay.style.cssText = `${canvasCss}z-index:2;cursor:crosshair;pointer-events:none;`
-  bg.style.zIndex = '0'
+  bg.style.cssText = `${CANVAS_CSS}z-index:0;`
+  overlay.style.cssText = `${CANVAS_CSS}z-index:2;cursor:crosshair;`
+
+  const hit = document.createElement('div')
+  hit.className = 'wf-hit'
+  hit.setAttribute('aria-hidden', 'true')
 
   const hud = document.createElement('div')
   hud.className = 'wf-hud'
@@ -160,97 +192,63 @@ export function mount(stage, { still, peek } = {}) {
       <button type="button" class="wf-reset" aria-label="Reset">Reset</button>
     </div>`
 
-  if (preview) wrap.append(bg, fluid, overlay)
-  else wrap.append(bg, fluid, overlay, hud)
+  if (preview) wrap.append(bg, fluid, overlay, hit)
+  else wrap.append(bg, fluid, overlay, hit, hud)
   stage.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;touch-action:none;'
   stage.replaceChildren(wrap)
 
   const frame = stage.closest('.stage-frame') || stage
   const bctx = bg.getContext('2d', { alpha: false })
   const octx = overlay.getContext('2d', { alpha: true })
+  const first = viewSize(frame)
+  const maxParticles = particleCap()
+  const diameter = preferredDiameter(first.w || 390, first.h || 844)
+  const padding = diameter * 0.45
+  const simulation = new SPH({
+    width: first.w || 390,
+    height: (first.h || 844) * SCREENS,
+    maxParticles,
+    smoothingRadius: 32,
+    boundaryPadding: padding,
+  })
+  simulation.particleRadius = diameter * 0.32
 
-  const boot = async () => {
-    if (stopped) return
-    try {
-    const first = viewSize(frame)
-    const maxParticles = particleCap()
-    const diameter = preferredDiameter(first.w || 390, first.h || 844)
-    const padding = diameter * 0.45
-    let simulation = null
-    let renderer = null
-    let solverPath = 'cpu+webgl2'
-
-    const automated = typeof navigator !== 'undefined' && navigator.webdriver
-    if (!preview && !automated && globalThis.isSecureContext && navigator.gpu) {
-      try {
-        const gpu = await createWebGPUFluid(fluid, {
-          width: first.w || 390,
-          height: (first.h || 844) * SCREENS,
-          maxParticles,
-          boundaryPadding: padding,
-          pointDiameter: diameter,
-          smoothingRadius: 32,
-        })
-        if (gpu && !stopped) {
-          simulation = gpu
-          renderer = gpu
-          solverPath = 'webgpu'
-        }
-      } catch (err) {
-        console.warn('WebGPU initialization failed; using the CPU solver.', err)
-        const replacement = fluid.cloneNode(true)
-        fluid.replaceWith(replacement)
-        fluid = replacement
-        fluid.style.cssText = `${canvasCss}z-index:1;`
-      }
-    }
-
-    if (!simulation) {
-      simulation = new SPH({
-        width: first.w || 390,
-        height: (first.h || 844) * SCREENS,
-        maxParticles,
-        smoothingRadius: 32,
-        boundaryPadding: padding,
-      })
-      simulation.particleRadius = diameter * 0.32
-      try {
-        renderer = createRenderer(fluid, maxParticles)
-        renderer.setParticleDiameter(diameter)
-        solverPath = renderer.backend === 'Canvas 2D' ? 'cpu+canvas' : 'cpu+webgl2'
-      } catch (err) {
-        throw err
-      }
-    }
-
-    if (stopped) {
-      simulation.clear?.()
-      return
-    }
-
-    stopInner = run({
-      wrap,
-      frame,
-      bg,
-      overlay,
-      fluid,
-      bctx,
-      octx,
-      hud,
-      preview,
-      simulation,
-      renderer,
-      solverPath,
-      maxParticles,
-      diameter,
-    })
-    } catch (err) {
-      console.error('waterfall boot failed', err)
+  let renderer = createRenderer(fluid, maxParticles, { force2d: true })
+  if (!renderer) {
+    fluid = freshFluidCanvas()
+    wrap.insertBefore(fluid, overlay)
+    renderer = createRenderer(fluid, maxParticles, { force2d: true })
+  }
+  if (!renderer) {
+    renderer = {
+      backend: 'none',
+      setCamera() {},
+      setParticleDiameter() {},
+      resize() {},
+      render() {},
     }
   }
+  renderer.setParticleDiameter?.(diameter)
 
-  boot().catch((err) => {
-    console.error(err)
+  stopInner = run({
+    wrap,
+    hit,
+    frame,
+    bg,
+    overlay,
+    getFluid: () => fluid,
+    setFluid: (next) => {
+      fluid = next
+    },
+    bctx,
+    octx,
+    hud,
+    preview,
+    simulation,
+    renderer,
+    solverPath: 'cpu+canvas',
+    maxParticles,
+    diameter,
   })
 
   return () => {
@@ -261,10 +259,12 @@ export function mount(stage, { still, peek } = {}) {
 
 function run({
   wrap,
+  hit,
   frame,
   bg,
   overlay,
-  fluid,
+  getFluid,
+  setFluid,
   bctx,
   octx,
   hud,
@@ -272,8 +272,11 @@ function run({
   simulation,
   renderer,
   solverPath,
+  maxParticles,
   diameter,
 }) {
+  const cpuSim = simulation
+  let fluid = getFluid()
   let w = 390
   let h = 844
   let worldH = h * SCREENS
@@ -285,7 +288,6 @@ function run({
   let mode = 'idle'
   let drawing = null
   let scrollY = 0
-  let touchPrimary = false
   let pressure = 'medium'
   let raf = 0
   let last = performance.now()
@@ -313,6 +315,8 @@ function run({
   let gpuPull = 0
   let renderScale = 1
   let lastQuality = 0
+  let glFails = 0
+  const canvasCss = CANVAS_CSS
 
   function live() {
     return isLive()
@@ -793,6 +797,61 @@ function run({
     octx.restore()
   }
 
+  function swapFluidCanvas(next) {
+    const prev = fluid
+    next.className = 'wf-fluid'
+    next.style.cssText = `${canvasCss}z-index:1;`
+    prev.replaceWith(next)
+    fluid = next
+    setFluid?.(next)
+  }
+
+  function restoreCpuSim() {
+    if (simulation === cpuSim) return
+    try {
+      cpuSim.clear?.()
+      const n = Math.min(simulation.count || 0, cpuSim.maxParticles || 0)
+      for (let i = 0; i < n; i++) {
+        cpuSim.addParticle(
+          simulation.x[i],
+          simulation.y[i],
+          simulation.vx?.[i] || 0,
+          simulation.vy?.[i] || 0,
+        )
+      }
+    } catch {
+      /* copy is best-effort */
+    }
+    try {
+      simulation.destroy?.()
+    } catch {
+      /* */
+    }
+    simulation = cpuSim
+    rebuildSegs()
+  }
+
+  function fallbackToCanvas(reason) {
+    if (renderer?.backend === 'Canvas 2D' && simulation === cpuSim) return false
+    console.warn('waterfall falling back to Canvas 2D', reason || '')
+    try {
+      restoreCpuSim()
+      const next = freshFluidCanvas()
+      const drawn = createRenderer(next, maxParticles, { force2d: true })
+      if (!drawn) return false
+      swapFluidCanvas(next)
+      renderer = drawn
+      renderer.setParticleDiameter(diameter)
+      solverPath = 'cpu+canvas'
+      glFails = 0
+      layout()
+      return true
+    } catch (err) {
+      console.error('waterfall canvas fallback failed', err)
+      return false
+    }
+  }
+
   function draw() {
     try {
       paintBg()
@@ -802,8 +861,11 @@ function run({
     try {
       renderer.setCamera?.(camY)
       renderer.render(simulation)
+      glFails = 0
     } catch (err) {
       console.error('waterfall fluid', err)
+      glFails += 1
+      if (glFails >= 2) fallbackToCanvas(err)
     }
     try {
       paintOverlay()
@@ -886,11 +948,19 @@ function run({
     if (!live() && !preview) return
     e.preventDefault?.()
     try {
-      wrap.setPointerCapture?.(e.pointerId)
+      hit.setPointerCapture?.(e.pointerId)
     } catch {
-      /* */
+      try {
+        wrap.setPointerCapture?.(e.pointerId)
+      } catch {
+        /* */
+      }
     }
-    unlock()
+    try {
+      unlock()
+    } catch {
+      /* AudioContext must never kill input */
+    }
     pointers.set(e.pointerId, pointFrom(e))
     if (pointers.size === 1) {
       mode = 'draw'
@@ -934,12 +1004,20 @@ function run({
     }
   }
 
-  function onTouchStart(e) {
-    touchPrimary = true
+  function touchId(t) {
+    return (t.identifier ?? 0) + 1000
+  }
+
+  function preventPageScroll(e) {
+    if (hudTarget(e.target)) return
     e.preventDefault()
+  }
+
+  function onTouchStart(e) {
+    preventPageScroll(e)
     for (const t of e.changedTouches) {
       onDown({
-        pointerId: t.identifier + 1000,
+        pointerId: touchId(t),
         pointerType: 'touch',
         button: 0,
         clientX: t.clientX,
@@ -951,10 +1029,10 @@ function run({
   }
 
   function onTouchMove(e) {
-    e.preventDefault()
+    preventPageScroll(e)
     for (const t of e.changedTouches) {
       onMove({
-        pointerId: t.identifier + 1000,
+        pointerId: touchId(t),
         pointerType: 'touch',
         clientX: t.clientX,
         clientY: t.clientY,
@@ -964,27 +1042,27 @@ function run({
   }
 
   function onTouchEnd(e) {
-    e.preventDefault()
-    for (const t of e.changedTouches) onUp({ pointerId: t.identifier + 1000 })
-    if (!e.touches.length) touchPrimary = false
+    preventPageScroll(e)
+    for (const t of e.changedTouches) onUp({ pointerId: touchId(t) })
   }
 
-  function onPointerSkipTouch(handler) {
+  function onPointerFromMouse(handler) {
     return (e) => {
-      if (touchPrimary && e.pointerType === 'touch') return
+      if (e.pointerType === 'touch') return
       handler(e)
     }
   }
 
-  wrap.addEventListener('pointerdown', onPointerSkipTouch(onDown))
-  wrap.addEventListener('pointermove', onPointerSkipTouch(onMove))
-  wrap.addEventListener('pointerup', onPointerSkipTouch(onUp))
-  wrap.addEventListener('pointercancel', onPointerSkipTouch(onUp))
-  wrap.addEventListener('lostpointercapture', onPointerSkipTouch(onUp))
-  wrap.addEventListener('touchstart', onTouchStart, { passive: false })
-  wrap.addEventListener('touchmove', onTouchMove, { passive: false })
-  wrap.addEventListener('touchend', onTouchEnd, { passive: false })
-  wrap.addEventListener('touchcancel', onTouchEnd, { passive: false })
+  const captureTouch = { passive: false, capture: true }
+  wrap.addEventListener('pointerdown', onPointerFromMouse(onDown))
+  wrap.addEventListener('pointermove', onPointerFromMouse(onMove))
+  wrap.addEventListener('pointerup', onPointerFromMouse(onUp))
+  wrap.addEventListener('pointercancel', onPointerFromMouse(onUp))
+  wrap.addEventListener('lostpointercapture', onPointerFromMouse(onUp))
+  wrap.addEventListener('touchstart', onTouchStart, captureTouch)
+  wrap.addEventListener('touchmove', onTouchMove, captureTouch)
+  wrap.addEventListener('touchend', onTouchEnd, captureTouch)
+  wrap.addEventListener('touchcancel', onTouchEnd, captureTouch)
   const blockGesture = (e) => e.preventDefault()
   wrap.addEventListener('gesturestart', blockGesture)
   wrap.addEventListener('gesturechange', blockGesture)
@@ -1032,7 +1110,11 @@ function run({
       } catch {
         /* */
       }
-      unlock()
+      try {
+        unlock()
+      } catch {
+        /* */
+      }
       snapPressureFromX(e.clientX)
     }
   })
@@ -1221,6 +1303,81 @@ function run({
     draw()
   }
 
+  async function tryWebGPU() {
+    if (preview || wantCanvasOnly()) return false
+    if (!globalThis.isSecureContext || !navigator.gpu) return false
+    const next = freshFluidCanvas()
+    wrap.insertBefore(next, overlay)
+    try {
+      const gpu = await withTimeout(
+        createWebGPUFluid(next, {
+          width: w,
+          height: worldH,
+          maxParticles,
+          boundaryPadding: diameter * 0.45,
+          pointDiameter: diameter,
+          smoothingRadius: 32,
+        }),
+        1600,
+        'WebGPU',
+      )
+      if (!gpu) {
+        next.remove()
+        return false
+      }
+      gpu.setParticleDiameter?.(diameter)
+      gpu.setView?.(w, h, dpr, camY)
+      gpu.setFloor?.(worldH - poolBase)
+      swapFluidCanvas(next)
+      simulation = gpu
+      renderer = gpu
+      solverPath = 'webgpu'
+      rebuildSegs()
+      layout()
+      return true
+    } catch (err) {
+      console.warn('WebGPU unavailable.', err)
+      try {
+        next.remove()
+      } catch {
+        /* */
+      }
+      return false
+    }
+  }
+
+  function tryWebGL2() {
+    if (preview || wantCanvasOnly()) return false
+    if (renderer?.backend === 'WebGL2') return true
+    const next = freshFluidCanvas()
+    try {
+      const candidate = createRenderer(next, maxParticles, { force2d: false })
+      if (!candidate || candidate.backend !== 'WebGL2') {
+        return false
+      }
+      swapFluidCanvas(next)
+      renderer = candidate
+      renderer.setParticleDiameter(diameter)
+      solverPath = 'cpu+webgl2'
+      layout()
+      return true
+    } catch (err) {
+      console.warn('WebGL2 unavailable.', err)
+      return false
+    }
+  }
+
+  async function tryUpgrade() {
+    if (preview || wantCanvasOnly()) return
+    try {
+      if (await tryWebGPU()) return
+      tryWebGL2()
+    } catch (err) {
+      console.warn('waterfall renderer upgrade failed', err)
+      fallbackToCanvas(err)
+    }
+  }
+
   function onPlay() {
     layout()
     setCam(camY)
@@ -1241,6 +1398,7 @@ function run({
   layout()
   resetPool()
   resetBoats()
+  tryUpgrade()
   if (preview) {
     seedDemo()
     for (let k = 0; k < 96; k++) {
@@ -1257,8 +1415,27 @@ function run({
     window.addEventListener('playground-start', onPlay)
   }
 
+  function hitLayers(x, y) {
+    const stack = []
+    const seen = new Set()
+    let el = document.elementFromPoint(x, y)
+    while (el && !seen.has(el)) {
+      seen.add(el)
+      stack.push({
+        tag: el.tagName,
+        id: el.id || '',
+        className: String(el.className || '').slice(0, 120),
+        pe: getComputedStyle(el).pointerEvents,
+        z: getComputedStyle(el).zIndex,
+      })
+      el = el.parentElement
+    }
+    return stack
+  }
+
   window.__waterfall = {
     stats,
+    layers: hitLayers,
     rms: readRms,
     setPressure,
     reset: resetWorld,

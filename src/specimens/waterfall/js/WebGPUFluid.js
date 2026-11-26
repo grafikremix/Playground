@@ -549,18 +549,23 @@ async function checkedShaderModule(device, label, code) {
   return module;
 }
 
-async function loadParticleBitmap() {
-  // Playground extension: ice-blue kernel instead of the original cyan PNG.
-  const canvas = document.createElement("canvas");
-  canvas.width = 64;
-  canvas.height = 64;
-  const context = canvas.getContext("2d");
-  const gradient = context.createRadialGradient(32, 32, 18, 32, 32, 32);
-  gradient.addColorStop(0, "rgba(183, 236, 255, 0.82)");
-  gradient.addColorStop(1, "rgba(183, 236, 255, 0)");
-  context.fillStyle = gradient;
-  context.fillRect(0, 0, 64, 64);
-  return createImageBitmap(canvas);
+function createParticlePixels(size = 64) {
+  // Playground: raw pixels, not createImageBitmap/OffscreenCanvas (Safari gaps).
+  const pixels = new Uint8Array(size * size * 4);
+  const center = (size - 1) * 0.5;
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const dx = (x - center) / center;
+      const dy = (y - center) / center;
+      const edge = Math.max(0, Math.min(1, (1 - Math.hypot(dx, dy)) * 12));
+      const offset = (y * size + x) * 4;
+      pixels[offset] = 183;
+      pixels[offset + 1] = 236;
+      pixels[offset + 2] = 255;
+      pixels[offset + 3] = Math.round(210 * edge);
+    }
+  }
+  return pixels;
 }
 
 function nextPowerOfTwo(value) {
@@ -905,21 +910,22 @@ class WebGPUFluid {
   }
 
   async _initializeRenderer() {
-    const bitmap = await loadParticleBitmap();
+    const size = 64;
+    const pixels = createParticlePixels(size);
     this.particleTexture = this.device.createTexture({
       label: "Original SPH water particle",
-      size: [bitmap.width, bitmap.height],
+      size: [size, size],
       format: "rgba8unorm",
       usage: GPUTextureUsage.TEXTURE_BINDING
         | GPUTextureUsage.COPY_DST
         | GPUTextureUsage.RENDER_ATTACHMENT,
     });
-    this.queue.copyExternalImageToTexture(
-      { source: bitmap },
+    this.queue.writeTexture(
       { texture: this.particleTexture },
-      [bitmap.width, bitmap.height],
+      pixels,
+      { bytesPerRow: size * 4 },
+      { width: size, height: size },
     );
-    bitmap.close?.();
     this.sampler = this.device.createSampler({
       label: "SPH linear clamp sampler",
       magFilter: "linear",
@@ -977,7 +983,9 @@ class WebGPUFluid {
       label: "SPH accumulated water",
       size: [drawingWidth, drawingHeight],
       format: "rgba8unorm",
-      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT
+        | GPUTextureUsage.TEXTURE_BINDING
+        | GPUTextureUsage.COPY_SRC,
     });
     this.compositeBindGroup = this.device.createBindGroup({
       label: "SPH composite bindings",
@@ -1400,25 +1408,102 @@ class WebGPUFluid {
     compositePass.end();
     this.queue.submit([encoder.finish()]);
   }
+
+  async validate() {
+    this.setView(64, 64, 1, 0);
+    this.setParticleDiameter(40);
+    this.clear();
+    this.addParticle(32, 32, 0, 0);
+    this.render();
+    const width = this.canvas.width;
+    const height = this.canvas.height;
+    const bytesPerRow = Math.ceil((width * 4) / 256) * 256;
+    const buffer = this.device.createBuffer({
+      label: "SPH validate readback",
+      size: bytesPerRow * height,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+    });
+    const encoder = this.device.createCommandEncoder({ label: "SPH validate copy" });
+    encoder.copyTextureToBuffer(
+      { texture: this.waterTexture },
+      { buffer, bytesPerRow },
+      { width, height },
+    );
+    this.queue.submit([encoder.finish()]);
+    await this.device.queue.onSubmittedWorkDone?.();
+    await buffer.mapAsync(GPUMapMode.READ);
+    const data = new Uint8Array(buffer.getMappedRange().slice());
+    buffer.unmap();
+    buffer.destroy();
+    this.clear();
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        if (data[y * bytesPerRow + x * 4 + 3] > 8) {
+          return true;
+        }
+      }
+    }
+    throw new Error("WebGPU produced an empty frame");
+  }
+
+  destroy() {
+    this.destroyed = true;
+    try {
+      this.device?.destroy?.();
+    } catch {
+      /* */
+    }
+  }
 }
 
-export async function createWebGPUFluid(canvas, options = {}) {
+async function requestGpuAdapter() {
   if (!globalThis.isSecureContext || !navigator.gpu) {
     return null;
   }
+  try {
+    const preferred = await navigator.gpu.requestAdapter({
+      powerPreference: "high-performance",
+    });
+    if (preferred) {
+      return preferred;
+    }
+  } catch {
+    /* Safari can expose navigator.gpu then reject high-performance. */
+  }
+  try {
+    return await navigator.gpu.requestAdapter();
+  } catch {
+    return null;
+  }
+}
 
-  const adapter = await navigator.gpu.requestAdapter({
-    powerPreference: "high-performance",
-  });
+export async function createWebGPUFluid(canvas, options = {}) {
+  const adapter = await requestGpuAdapter();
   if (!adapter) {
     return null;
   }
-  const device = await adapter.requestDevice();
-  const fluid = new WebGPUFluid(canvas, adapter, device, options);
-  await fluid.initialize();
-  device.lost.then((info) => {
-    fluid.destroyed = true;
-    console.error("WebGPU device lost:", info.message);
-  });
-  return fluid;
+  let device;
+  try {
+    device = await adapter.requestDevice();
+  } catch (err) {
+    console.warn("WebGPU requestDevice failed.", err);
+    return null;
+  }
+  try {
+    const fluid = new WebGPUFluid(canvas, adapter, device, options);
+    await fluid.initialize();
+    await fluid.validate();
+    device.lost?.then?.((info) => {
+      fluid.destroyed = true;
+      console.error("WebGPU device lost:", info?.message || info);
+    });
+    return fluid;
+  } catch (err) {
+    try {
+      device.destroy?.();
+    } catch {
+      /* */
+    }
+    throw err;
+  }
 }
